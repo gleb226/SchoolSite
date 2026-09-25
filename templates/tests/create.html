@@ -96,6 +96,12 @@
                 style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border: none;">
             {{ icons.icon('sparkles') }} Згенерувати тест через AI
         </button>
+        <label style="display:flex;align-items:center;gap:7px;font-size:14px;font-weight:500;cursor:pointer;
+                      padding:6px 12px;border:1px solid #c7d2fe;border-radius:8px;background:#eef2ff;color:#4338ca;
+                      transition:background .15s;" title="AI шукає фото в Google або генерує SVG-схему (графіки, геометрія)">
+            <input type="checkbox" id="ai-gen-images" style="width:16px;height:16px;accent-color:#4f46e5;cursor:pointer;">
+            📷 Генерувати зображення
+        </label>
         <span id="ai-status" style="font-size: 14px; font-weight: 500; color: #64748b;"></span>
     </div>
 </div>
@@ -834,7 +840,25 @@
         const explGroup = block.querySelector('input[name="question_explanation[]"]')?.closest('.form-group');
         if (explGroup && !block.querySelector('.q-photo-section')) {
             const idx = block.dataset.index || 0;
-            explGroup.after(buildPhotoSection(idx));
+            const photoSection = buildPhotoSection(idx);
+            // Pre-fill AI-generated image if present
+            const aiImg = block.dataset.aiImage;
+            if (aiImg) {
+                const hiddenField = photoSection.querySelector('.q-photo-hidden');
+                const previewDiv  = photoSection.querySelector('.q-photo-preview');
+                const previewImg  = photoSection.querySelector('.q-photo-preview img');
+                if (hiddenField && previewDiv && previewImg) {
+                    hiddenField.value = aiImg;
+                    previewImg.src = aiImg;
+                    previewDiv.style.display = 'block';
+                    // Add AI badge
+                    const badge = document.createElement('span');
+                    badge.style.cssText = 'font-size:11px;color:#7c3aed;margin-left:6px;';
+                    badge.textContent = '🤖 AI';
+                    previewDiv.appendChild(badge);
+                }
+            }
+            explGroup.after(photoSection);
         }
     }
 
@@ -939,7 +963,9 @@
             const typeLabel = { numbers: 'зміна чисел', unique: 'унікальні питання', shuffle: 'перемішування' };
             statusElem.innerText = `⏳ Генерація ${numVariants} варіантів (${typeLabel[variantType]})... Зачекайте.`;
         } else {
-            statusElem.innerText = '⏳ Генерація питань... Зачекайте.';
+            statusElem.innerText = document.getElementById('ai-gen-images').checked
+                ? '⏳ Генерація питань + пошук зображень... Займе трохи більше часу.'
+                : '⏳ Генерація питань... Зачекайте.';
         }
         statusElem.style.color = '#4f46e5';
         document.getElementById('btn-ai-generate').disabled = true;
@@ -950,7 +976,8 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ subject, topic, question_count: count, difficulty,
                     question_mode, num_variants: numVariants, variant_type: variantType,
-                    shuffle_questions: true, shuffle_options: true })
+                    shuffle_questions: true, shuffle_options: true,
+                    generate_images: document.getElementById('ai-gen-images').checked })
             });
             const res = await resp.json();
             if (!res.success) throw new Error(res.error || 'Помилка генерації');
@@ -1007,6 +1034,10 @@
         block.className = 'card question-editor-block';
         block.dataset.index = idx;
         block.style.cssText = 'margin-bottom: 20px; background: #fdfdfd; border: 1px solid #ccc;';
+        // Store AI-generated image so attachFormulaToBlock can pre-fill the photo section
+        if (q && q.image_url) {
+            block.dataset.aiImage = q.image_url;
+        }
 
         const qType     = (q && q.question_type) || 'single';
         const inputType = qType === 'multiple' ? 'checkbox' : 'radio';

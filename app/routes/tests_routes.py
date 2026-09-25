@@ -595,6 +595,7 @@ def ai_generate():
     question_mode = sanitize_input(data.get('question_mode', 'mixed'), 50)
     num_variants = max(1, min(30, int(data.get('num_variants', 1) or 1)))
     variant_type = sanitize_input(data.get('variant_type', 'shuffle'), 20)
+    generate_images = bool(data.get('generate_images', False))
     # shuffle and numbers are always on — these flags kept for compatibility
     shuffle_questions = True
     shuffle_options = True
@@ -610,7 +611,7 @@ def ai_generate():
     )
 
     try:
-        from app.ai import _generate_test_ai_once
+        from app.ai import _generate_test_ai_once, enrich_questions_with_images
         import time as _time
 
         if variant_type == 'numbers':
@@ -624,6 +625,8 @@ def ai_generate():
 
         # Single variant — return data, form handles saving
         if num_variants <= 1:
+            if generate_images:
+                enrich_questions_with_images(generated['questions'], subject, max_images=5)
             return jsonify({'success': True, 'data': generated})
 
         # Multi-variant: generate all variants now, return for editor + hidden field on save
@@ -654,6 +657,15 @@ def ai_generate():
         else:
             # shuffle — same questions for all variants (shuffled per student at runtime)
             variants_data = [generated] * num_variants
+
+        if generate_images:
+            # Enrich only the first variant (images are the same for all variants)
+            enrich_questions_with_images(variants_data[0]['questions'], subject, max_images=5)
+            # Sync images to other variants that share the same question list ref
+            for vd in variants_data[1:]:
+                for i, q in enumerate(vd.get('questions', [])):
+                    if i < len(variants_data[0]['questions']):
+                        q['image_url'] = variants_data[0]['questions'][i].get('image_url')
 
         return jsonify({
             'success': True,

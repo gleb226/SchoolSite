@@ -1,7 +1,9 @@
 services:
   - type: web
     name: schoolsite
-    runtime: docker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 2 --threads 2 --timeout 120 --bind 0.0.0.0:$PORT wsgi:app
     plan: free
     envVars:
       - key: FLASK_ENV
@@ -20,5 +22,10 @@ services:
         value: "2"
       - key: GEMINI_TIMEOUT_SECONDS
         value: "90"
+      # Google Custom Search (optional — for AI image search in tests)
+      # - key: GOOGLE_CSE_KEY
+      #   value: YOUR_GOOGLE_CSE_API_KEY
+      # - key: GOOGLE_CSE_CX
+      #   value: YOUR_CUSTOM_SEARCH_ENGINE_ID
     healthCheckPath: /
     autoDeploy: true

@@ -4,6 +4,7 @@ import logging
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 import socket
 import re
 from typing import Any
@@ -682,3 +683,200 @@ def grade_text_answer(question_text: str, correct_answer: str, student_answer: s
         logger.warning(f"AI grading failed: {e}")
         return {"score": 0, "max_points": max_points,
                 "comment": f"AI не зміг перевірити автоматично: {str(e)[:100]}", "confidence": "low"}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# IMAGE GENERATION PIPELINE FOR QUESTIONS
+#
+# Flow: 1. Classify question (needs image?)
+#        2. Google Custom Search → find real photo/diagram
+#        3. Validate image (accessible + relevant)
+#        4. If no good image found → Gemini generates SVG code (for graphs,
+#           geometry, charts) or returns None (no image needed)
+# ══════════════════════════════════════════════════════════════════════════════
+
+GOOGLE_CSE_KEY = os.environ.get("GOOGLE_CSE_KEY", "").strip()
+GOOGLE_CSE_CX  = os.environ.get("GOOGLE_CSE_CX", "").strip()
+
+# Topics/keywords that benefit from visual aids
+_VISUAL_KEYWORDS = (
+    # Geometry
+    'трикутник', 'коло', 'квадрат', 'прямокутник', 'паралелограм', 'ромб',
+    'трапеція', 'куб', 'циліндр', 'конус', 'куля', 'піраміда', 'призма',
+    'геометр', 'фігур', 'кут', 'вектор', 'координат',
+    # Graphs / functions
+    'графік', 'функці', 'парабол', 'гіпербол', 'синус', 'косинус',
+    'показников', 'логарифм', 'похідн', 'інтеграл',
+    # Physics
+    'схем', 'ланцюг', 'коливан', 'хвил', 'оптик', 'лінз', 'призм',
+    'сила', 'вектор', 'траєктор',
+    # Chemistry
+    'молекул', 'структур', 'формул', 'реакц', 'таблиц менделєєв',
+    # Biology / geography
+    'клітин', 'орган', 'карт', 'діаграм', 'графік',
+)
+
+# Question types that almost never need images
+_NO_IMAGE_TYPES = ('правопис', 'граматик', 'орфограф', 'відмінювання',
+                   'синонім', 'антонім', 'наголос')
+
+
+def _question_needs_image(question_text: str, subject: str) -> bool:
+    """Heuristic: does this question benefit from a visual?"""
+    qt = question_text.lower()
+    # Explicit negative signals
+    for kw in _NO_IMAGE_TYPES:
+        if kw in qt:
+            return False
+    # Explicit positive signals
+    for kw in _VISUAL_KEYWORDS:
+        if kw in qt:
+            return True
+    # Subject-level default
+    return subject.lower() in ('математика', 'фізика', 'хімія', 'географія', 'біологія')
+
+
+def _google_image_search(query: str, num: int = 3) -> list[str]:
+    """
+    Search Google Custom Search API for image URLs.
+    Returns list of image URLs (may be empty if API not configured).
+    """
+    if not GOOGLE_CSE_KEY or not GOOGLE_CSE_CX:
+        return []
+    try:
+        params = urllib.parse.urlencode({
+            'key': GOOGLE_CSE_KEY,
+            'cx': GOOGLE_CSE_CX,
+            'q': query,
+            'searchType': 'image',
+            'num': num,
+            'safe': 'active',
+            'imgSize': 'medium',
+            'imgType': 'clipart',   # prefer clean educational diagrams
+        })
+        url = f'https://www.googleapis.com/customsearch/v1?{params}'
+        req = urllib.request.Request(url, headers={'User-Agent': 'SchoolSite/1.0'})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode())
+        return [item['link'] for item in data.get('items', [])]
+    except Exception as ex:
+        logger.debug(f'Google CSE search failed: {ex}')
+        return []
+
+
+def _validate_image_url(url: str) -> bool:
+    """Quick HEAD check — is the image reachable and reasonably sized?"""
+    try:
+        req = urllib.request.Request(url, method='HEAD',
+                                     headers={'User-Agent': 'SchoolSite/1.0'})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            ct = resp.headers.get('Content-Type', '')
+            cl = int(resp.headers.get('Content-Length', '0') or '0')
+            return ct.startswith('image/') and (cl == 0 or cl < 5_000_000)
+    except Exception:
+        return False
+
+
+# ── SVG generation via Gemini ──────────────────────────────────────────────
+
+_SVG_PROMPT = """Ти — генератор навчальних SVG-зображень для шкільних тестів.
+Для наступного питання згенеруй компактне SVG-зображення 400x300 пікселів.
+
+Питання: {question}
+Предмет: {subject}
+
+Правила:
+1. Поверни ТІЛЬКИ валідний SVG-код, починаючи з <svg і закінчуючи </svg>.
+2. Без пояснень, без markdown, без ```svg.
+3. viewBox="0 0 400 300", xmlns="http://www.w3.org/2000/svg".
+4. Чистий білий фон (#fff або white).
+5. Чіткі лінії, підписи латиницею/цифрами (шрифт Arial або sans-serif, розмір 12-14px).
+6. Для графіків функцій: намалюй систему координат, вісь X та Y, підписи, та криву/пряму.
+7. Для геометрії: намалюй фігуру з підписами сторін і кутів.
+8. Для фізики: намалюй схему або діаграму.
+9. Якщо питання — чисто текстове (без діаграм) — поверни порожній рядок "".
+
+Відповідь (тільки SVG або порожній рядок):"""
+
+
+def _generate_svg_for_question(question_text: str, subject: str) -> str | None:
+    """
+    Ask Gemini to generate an SVG diagram for a question.
+    Returns SVG string (starting with <svg) or None.
+    """
+    prompt = _SVG_PROMPT.format(question=question_text[:300], subject=subject)
+    try:
+        raw = call_gemini(prompt, json_mode=False)
+        if not raw or not raw.strip():
+            return None
+        # Extract SVG block
+        svg_match = re.search(r'<svg[\s\S]*?</svg>', raw, re.IGNORECASE)
+        if svg_match:
+            svg = svg_match.group(0)
+            # Basic safety: remove script tags
+            svg = re.sub(r'<script[\s\S]*?</script>', '', svg, flags=re.IGNORECASE)
+            svg = re.sub(r'\son\w+\s*=\s*["\'][^"\']*["\']', '', svg)
+            if len(svg) > 200:  # sanity check
+                return svg
+        return None
+    except Exception as ex:
+        logger.debug(f'SVG generation failed: {ex}')
+        return None
+
+
+def _svg_to_data_url(svg: str) -> str:
+    """Convert SVG string to a data: URL for use in <img src="">."""
+    import base64
+    encoded = base64.b64encode(svg.encode('utf-8')).decode('ascii')
+    return f'data:image/svg+xml;base64,{encoded}'
+
+
+# ── Main public function ────────────────────────────────────────────────────
+
+def generate_question_image(question_text: str, subject: str,
+                             search_query: str | None = None) -> str | None:
+    """
+    Full pipeline: search → validate → SVG fallback.
+
+    Returns:
+        str  — image URL (https://… or data:image/svg+xml;base64,…)
+        None — no image appropriate for this question
+    """
+    if not _question_needs_image(question_text, subject):
+        return None
+
+    # 1. Try Google Image Search
+    query = search_query or f'{subject} {question_text[:80]} схема навчальний'
+    urls = _google_image_search(query)
+    for url in urls:
+        if _validate_image_url(url):
+            logger.info(f'Found image via Google CSE: {url[:60]}')
+            return url
+
+    # 2. Fallback — generate SVG with Gemini
+    logger.info(f'No image found via Google, generating SVG for: {question_text[:60]}')
+    svg = _generate_svg_for_question(question_text, subject)
+    if svg:
+        return _svg_to_data_url(svg)
+
+    return None
+
+
+def enrich_questions_with_images(questions: list[dict], subject: str,
+                                  max_images: int = 5) -> list[dict]:
+    """
+    Add image_url to questions that benefit from visual aids.
+    Processes up to max_images questions to avoid slow generation.
+    """
+    import urllib.parse  # ensure imported in scope
+    enriched = 0
+    for q in questions:
+        if enriched >= max_images:
+            break
+        if q.get('image_url'):  # already has image
+            continue
+        img = generate_question_image(q.get('question_text', ''), subject)
+        if img:
+            q['image_url'] = img
+            enriched += 1
+    return questions
