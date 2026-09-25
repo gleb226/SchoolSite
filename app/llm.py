@@ -55,18 +55,17 @@ GEMINI_KEYS       = _keys('GEMINI_API_KEY')
 OPENROUTER_KEYS   = _keys('OPENROUTER_API_KEY')
 GROQ_KEYS         = _keys('GROQ_API_KEY')
 
-GEMINI_MODEL      = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash').strip()
+GEMINI_MODEL      = os.environ.get('GEMINI_MODEL', 'gemini-1.5-flash').strip()
 GEMINI_FALLBACKS  = [m.strip() for m in
-                     os.environ.get('GEMINI_FALLBACK_MODELS', 'gemini-1.5-flash,gemini-1.5-flash-8b').split(',')
+                     os.environ.get('GEMINI_FALLBACK_MODELS', 'gemini-1.5-pro,gemini-1.5-flash-8b-latest').split(',')
                      if m.strip()]
 
 # Best free/cheap OpenRouter models (in priority order)
 OPENROUTER_MODELS = [
     m.strip() for m in os.environ.get(
         'OPENROUTER_MODELS',
-        'google/gemini-2.0-flash-exp:free,'
-        'google/gemini-flash-1.5,'
-        'meta-llama/llama-3.3-70b-instruct:free,'
+        'google/gemini-1.5-flash,'
+        'meta-llama/llama-3.1-8b-instruct:free,'
         'mistralai/mistral-7b-instruct:free'
     ).split(',') if m.strip()
 ]
