@@ -15,11 +15,11 @@ Usage:
     data = llm_generate_json("Поверни JSON: {\"key\": ...}")
 
 Task routing:
-    "test_generation"  → Gemini (best Ukrainian language, structured JSON)
-    "materials"        → OpenRouter Claude/Llama or Gemini (long context)
-    "ocr"              → Gemini Vision (image → text)
-    "grading"          → Gemini (short, fast)
-    default            → round-robin across all available
+    "test_generation"  → Gemini only (best Ukrainian, structured JSON)
+    "ocr"              → Gemini Vision only (image → text)
+    "grading"          → Gemini only (short, fast)
+    "materials"        → Gemini first, then OpenRouter/Groq fallback
+    "default"          → Gemini first, then OpenRouter/Groq fallback
 """
 
 import os
