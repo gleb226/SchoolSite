@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ mat.title }} — Матеріали{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<style>
+.material-body { font-size:16px; line-height:1.8; color:#1e293b; }
+.material-body h1 { font-size:26px;color:#1e3a8a;border-bottom:2px solid #e2e8f0;padding-bottom:8px;margin:24px 0 12px; }
+.material-body h2 { font-size:21px;color:#1e40af;margin:20px 0 9px; }
+.material-body h3 { font-size:17px;color:#1d4ed8;margin:16px 0 7px; }
+.material-body p  { margin:9px 0; }
+.material-body ul,.material-body ol { margin:8px 0 8px 22px; }
+.material-body li { margin:3px 0; }
+.material-body strong { font-weight:700;color:#0f172a; }
+.material-body em { font-style:italic;color:#475569; }
+.material-body code { background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-family:monospace;font-size:14px;color:#dc2626; }
+.material-body pre { background:#0f172a;color:#e2e8f0;border-radius:8px;padding:16px;overflow-x:auto;margin:14px 0; }
+.material-body pre code { background:none;border:none;color:inherit;padding:0; }
+.material-body blockquote { border-left:4px solid #6366f1;padding:8px 16px;background:#f5f3ff;margin:12px 0;border-radius:0 6px 6px 0;color:#4338ca;font-style:italic; }
+.material-body table { border-collapse:collapse;width:100%;margin:12px 0;font-size:15px; }
+.material-body table th { background:#1e3a8a;color:#fff;padding:9px 12px;text-align:left;font-weight:600; }
+.material-body table td { padding:8px 12px;border-bottom:1px solid #e2e8f0; }
+.material-body table tr:nth-child(even) td { background:#f8fafc; }
+.material-body mark { background:#fef08a;color:#713f12;padding:1px 4px;border-radius:3px; }
+.material-body hr { border:none;border-top:2px solid #e2e8f0;margin:20px 0; }
+@media print { .no-print{display:none!important;} }
+</style>
+{% endblock %}
+{% block content %}
+<div class="dashboard-header no-print">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+        <div>
+            <h1>{{ mat.title }}</h1>
+            <p style="margin-top:4px;color:#64748b;font-size:14px;display:flex;gap:14px;flex-wrap:wrap;">
+                {% if mat.subject %}<span>📚 {{ mat.subject }}</span>{% endif %}
+                {% if mat.class_level %}<span>🎓 {{ mat.class_level }} кл.</span>{% endif %}
+                {% if mat.class_name %}<span>🏫 {{ mat.class_name }}</span>{% endif %}
+                <span>👤 {{ mat.teacher_name }}</span>
+                <span>🕐 {{ mat.updated_at[:10] if mat.updated_at else '' }}</span>
+            </p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;" class="no-print">
+            {% if current_user and current_user.role in ('teacher','admin','principal','vice_principal') %}
+            <a href="{{ url_for('materials.edit_material', material_id=mat.id) }}" class="btn btn-outline btn-sm">✏️ Редагувати</a>
+            {% endif %}
+            <button onclick="window.print()" class="btn btn-outline btn-sm">🖨️ Друк</button>
+            <button onclick="copyMd()" class="btn btn-outline btn-sm" id="copy-btn">📋 Копіювати MD</button>
+            <a href="{{ url_for('materials.list_materials') }}" class="btn btn-outline btn-sm">← Список</a>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="padding:28px 32px;max-width:860px;">
+    <div class="material-body" id="mat-rendered"></div>
+</div>
+
+<textarea id="raw-md" style="display:none;">{{ mat.content_md | e }}</textarea>
+
+<script>
+const RAW = document.getElementById('raw-md').value;
+marked.setOptions({ breaks: true, gfm: true });
+
+function preprocess(md) {
+    // ==highlight== → <mark>
+    return md.replace(/==(.+?)==/g, '<mark>$1</mark>');
+}
+
+document.getElementById('mat-rendered').innerHTML = marked.parse(preprocess(RAW));
+
+if (window.renderMathInElement) {
+    renderMathInElement(document.getElementById('mat-rendered'), {
+        delimiters: [
+            {left:'$$',right:'$$',display:true},
+            {left:'$', right:'$', display:false}
+        ],
+        throwOnError: false
+    });
+}
+
+function copyMd() {
+    navigator.clipboard.writeText(RAW).then(() => {
+        const b = document.getElementById('copy-btn');
+        b.textContent = '✓ Скопійовано';
+        setTimeout(() => b.textContent = '📋 Копіювати MD', 2000);
+    });
+}
+</script>
+{% endblock %}

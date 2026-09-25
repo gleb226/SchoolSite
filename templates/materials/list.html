@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Навчальні матеріали — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('file-text') }} Навчальні матеріали</h1>
+    <p>Конспекти, шпаргалки, довідники — створені та відформатовані AI</p>
+</div>
+
+<div style="display:flex;justify-content:flex-end;margin-bottom:18px;">
+    <a href="{{ url_for('materials.create_material') }}" class="btn btn-primary">
+        + Створити матеріал
+    </a>
+</div>
+
+{% if materials %}
+<div style="display:flex;flex-direction:column;gap:12px;">
+    {% for m in materials %}
+    <div class="card" style="padding:16px 20px;border-radius:10px;
+         border-left:4px solid {% if m.is_published %}#16a34a{% else %}#94a3b8{% endif %};">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+            <div style="flex:1;min-width:0;">
+                <a href="{{ url_for('materials.view_material', material_id=m.id) }}"
+                   style="font-size:17px;font-weight:700;color:#1e3a8a;text-decoration:none;">
+                    {{ m.title }}
+                </a>
+                <div style="margin-top:4px;font-size:13px;color:#64748b;display:flex;flex-wrap:wrap;gap:10px;">
+                    {% if m.subject %}<span>📚 {{ m.subject }}</span>{% endif %}
+                    {% if m.class_level %}<span>🎓 {{ m.class_level }} клас</span>{% endif %}
+                    {% if m.class_name %}<span>🏫 {{ m.class_name }}</span>{% endif %}
+                    <span>👤 {{ m.teacher_name }}</span>
+                    <span>🕐 {{ m.updated_at[:10] }}</span>
+                    <span style="color:{% if m.is_published %}#16a34a{% else %}#94a3b8{% endif %};font-weight:600;">
+                        {% if m.is_published %}● Опублікований{% else %}○ Чернетка{% endif %}
+                    </span>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0;">
+                <a href="{{ url_for('materials.edit_material', material_id=m.id) }}"
+                   class="btn btn-sm btn-outline">Редагувати</a>
+                <form method="POST" action="{{ url_for('materials.delete_material', material_id=m.id) }}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Видалити матеріал?')">
+                    <button type="submit" class="btn btn-sm btn-outline"
+                            style="color:#dc2626;border-color:#dc2626;">Видалити</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:48px 24px;color:#64748b;">
+    <div style="font-size:48px;margin-bottom:16px;">📄</div>
+    <h3 style="margin-bottom:8px;color:#334155;">Матеріалів поки немає</h3>
+    <p style="margin-bottom:20px;">Натисніть «Створити матеріал» і AI допоможе вам підготувати конспект, шпаргалку або завдання за лічені секунди.</p>
+    <a href="{{ url_for('materials.create_material') }}" class="btn btn-primary">
+        + Створити перший матеріал
+    </a>
+</div>
+{% endif %}
+{% endblock %}

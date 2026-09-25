@@ -5,7 +5,10 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --workers 2 --threads 2 --timeout 120 --bind 0.0.0.0:$PORT wsgi:app
     plan: free
+    healthCheckPath: /
+    autoDeploy: true
     envVars:
+      # ── Flask ───────────────────────────────────────────────────────────────
       - key: FLASK_ENV
         value: production
       - key: FLASK_DEBUG
@@ -14,6 +17,20 @@ services:
         generateValue: true
       - key: DATABASE_PATH
         value: /opt/render/project/src/school.db
+      - key: PORT
+        value: "10000"
+      - key: SCHOOL_NAME
+        value: Ужгородський ліцей №3
+
+      # ── Google Gemini (ОБОВ'ЯЗКОВО — укр. мова, OCR, тести) ────────────────
+      # Отримати: https://aistudio.google.com/app/apikey
+      # Додати вручну в Render Dashboard → Environment (не зберігати в git!)
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY_2
+        sync: false
+      - key: GEMINI_API_KEY_3
+        sync: false
       - key: GEMINI_MODEL
         value: gemini-2.0-flash
       - key: GEMINI_FALLBACK_MODELS
@@ -22,10 +39,53 @@ services:
         value: "2"
       - key: GEMINI_TIMEOUT_SECONDS
         value: "90"
-      # Google Custom Search (optional — for AI image search in tests)
-      # - key: GOOGLE_CSE_KEY
-      #   value: YOUR_GOOGLE_CSE_API_KEY
-      # - key: GOOGLE_CSE_CX
-      #   value: YOUR_CUSTOM_SEARCH_ENGINE_ID
-    healthCheckPath: /
-    autoDeploy: true
+
+      # ── OpenRouter (fallback для матеріалів — БЕЗКОШТОВНО) ─────────────────
+      # Отримати: https://openrouter.ai → Dashboard → Keys
+      - key: OPENROUTER_API_KEY_1
+        sync: false
+      - key: OPENROUTER_API_KEY_2
+        sync: false
+      - key: OPENROUTER_MODELS
+        value: google/gemini-2.0-flash-exp:free,google/gemini-flash-1.5,meta-llama/llama-3.3-70b-instruct:free,mistralai/mistral-7b-instruct:free
+
+      # ── Groq (швидкий fallback — БЕЗКОШТОВНО) ──────────────────────────────
+      # Отримати: https://console.groq.com → API Keys
+      - key: GROQ_API_KEY_1
+        sync: false
+      - key: GROQ_API_KEY_2
+        sync: false
+      - key: GROQ_MODELS
+        value: llama-3.3-70b-versatile,mixtral-8x7b-32768,gemma2-9b-it
+
+      # ── LLM загальні ────────────────────────────────────────────────────────
+      - key: LLM_TIMEOUT_SECONDS
+        value: "90"
+      - key: LLM_RETRIES
+        value: "2"
+
+      # ── Telegram Bot (алерти адміну) ────────────────────────────────────────
+      # Отримати токен: @BotFather → /newbot
+      # Свій ID: @userinfobot → "Id:"
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_TELEGRAM_ID
+        sync: false
+
+      # ── Google Custom Search (зображення до тестів — ОПЦІЙНО) ───────────────
+      # Безкоштовно 100 req/день
+      # CSE: https://programmablesearchengine.google.com → New engine → увімкнути Image search → Search engine ID
+      # API Key: https://console.cloud.google.com → Custom Search API → Credentials → Create API key
+      - key: GOOGLE_CSE_KEY
+        sync: false
+      - key: GOOGLE_CSE_CX
+        sync: false
+
+      # ── MongoDB (опційно, зараз SQLite) ─────────────────────────────────────
+      # Безкоштовно 512MB: https://www.mongodb.com/cloud/atlas
+      - key: MONGO_ENABLED
+        value: "false"
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB_NAME
+        value: schoolsite

@@ -189,6 +189,18 @@ CREATE TABLE IF NOT EXISTS test_session_participants (
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(session_id, student_id)
 );
+CREATE TABLE IF NOT EXISTS materials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    subject TEXT,
+    class_level TEXT,
+    content_md TEXT NOT NULL DEFAULT '',
+    teacher_id INTEGER REFERENCES users(id),
+    class_id INTEGER REFERENCES classes(id),
+    is_published BOOLEAN DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 

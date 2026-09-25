@@ -77,6 +77,7 @@ def create_app():
     from app.routes.voting_routes import voting_bp
     from app.routes.dashboard_routes import dashboard_bp
     from app.routes.session_routes import session_bp
+    from app.routes.materials import materials_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
@@ -87,5 +88,6 @@ def create_app():
     app.register_blueprint(voting_bp, url_prefix='/voting')
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(session_bp, url_prefix='/session')
+    app.register_blueprint(materials_bp, url_prefix='/materials')
 
     return app
