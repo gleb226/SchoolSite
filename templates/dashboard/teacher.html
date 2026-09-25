@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Кабінет вчителя — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>Кабінет вчителя</h1>
+    <p>Вітаємо, <strong>{{ current_user.full_name }}</strong>!</p>
+</div>
+
+<!-- Швидкі дії -->
+<div style="margin-bottom: 30px;">
+    <h3 style="margin-bottom: 12px; color: #374151;">Що хочете зробити?</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+        <a href="{{ url_for('diary.add_grade') }}" class="btn btn-primary" style="font-size: 15px; padding: 10px 20px;">
+            {{ icons.icon('plus') }} Виставити оцінку
+        </a>
+        <a href="{{ url_for('diary.mark_attendance') }}" class="btn btn-primary" style="font-size: 15px; padding: 10px 20px;">
+            {{ icons.icon('plus') }} Відмітити відвідуваність
+        </a>
+        <a href="{{ url_for('tests.create_test') }}" class="btn btn-outline" style="font-size: 15px; padding: 10px 20px;">
+            {{ icons.icon('sparkles') }} Створити онлайн-тест
+        </a>
+        <a href="{{ url_for('tests.list_tests') }}" class="btn btn-outline" style="font-size: 15px; padding: 10px 20px;">
+            {{ icons.icon('file-check') }} Мої тести
+        </a>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <!-- Мої класи -->
+    <div class="dashboard-card">
+        <h3>{{ icons.icon('school') }} Мої класи (класне керівництво)</h3>
+        {% if classes %}
+            <ul class="simple-list">
+                {% for c in classes %}
+                    <li><strong>Клас {{ c.name }}</strong> <small style="color:#64748b;">({{ c.year }})</small></li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p style="color: #64748b;">Ви не призначені класним керівником.</p>
+        {% endif %}
+    </div>
+
+    <!-- Створені тести -->
+    <div class="dashboard-card">
+        <h3>{{ icons.icon('file-check') }} Мої тести</h3>
+        {% if tests %}
+            <ul class="simple-list">
+                {% for t in tests %}
+                    <li style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span>
+                            <strong>{{ t.title }}</strong>
+                            <small style="color: {% if t.is_active %}#16a34a{% else %}#94a3b8{% endif %};">
+                                ({% if t.is_active %}Активний{% else %}Прихований{% endif %})
+                            </small>
+                        </span>
+                        <div style="display:flex;gap:6px;">
+                            <a href="{{ url_for('tests.take_test', test_id=t.id) }}" class="btn btn-sm btn-primary">Пройти</a>
+                            <a href="{{ url_for('tests.preview_test', test_id=t.id) }}" class="btn btn-sm btn-outline">Переглянути</a>
+                            <a href="{{ url_for('tests.results', test_id=t.id) }}" class="btn btn-sm btn-outline">Результати учнів</a>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+            <p style="margin-top: 12px;"><a href="{{ url_for('tests.list_tests') }}" class="btn btn-sm">Усі тести →</a></p>
+        {% else %}
+            <p>Тестів ще немає. <a href="{{ url_for('tests.create_test') }}">Створити перший тест</a></p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Останні оцінки -->
+<div class="dashboard-section" style="margin-top: 30px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3>{{ icons.icon('book') }} Останні виставлені оцінки</h3>
+        <a href="{{ url_for('diary.add_grade') }}" class="btn btn-sm btn-outline">+ Додати оцінку</a>
+    </div>
+    {% if recent_grades %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Учень</th>
+                    <th>Предмет</th>
+                    <th>Оцінка</th>
+                    <th>Тип</th>
+                    <th>Дата</th>
+                    <th>Коментар</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for g in recent_grades %}
+                <tr>
+                    <td><strong>{{ g.student_name }}</strong></td>
+                    <td>{{ g.subject_name }}</td>
+                    <td><span class="grade-badge">{{ g.grade }}</span></td>
+                    <td>{{ g.grade_type }}</td>
+                    <td>{{ g.date }}</td>
+                    <td>{{ g.comment or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p style="color: #64748b;">Нещодавно виставлених оцінок немає.</p>
+    {% endif %}
+</div>
+{% endblock %}

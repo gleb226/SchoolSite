@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Управління новинами — Адміністрація ліцею №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('file-check') }} Управління новинами</h1>
+    <p><a href="{{ url_for('admin.admin_dashboard') }}">← До панелі керування</a></p>
+</div>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<div class="card" style="margin-bottom: 30px;">
+    <h3>Додати нову новину</h3>
+    <form method="POST" class="standard-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="action" value="create">
+
+        <div class="form-group">
+            <label for="title">Заголовок новини *:</label>
+            <input type="text" id="title" name="title" required placeholder="Наприклад: Підсумки шкільної олімпіади...">
+        </div>
+
+        <div class="form-group">
+            <label for="content">Текст новини (підтримується простий HTML або текст) *:</label>
+            <textarea id="content" name="content" rows="6" required placeholder="Введіть текст публікації..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="publish" value="1" checked>
+                Опублікувати одразу на головній сторінці
+            </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Зберегти новину</button>
+    </form>
+</div>
+
+<h3>Всі новини</h3>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Заголовок</th>
+            <th>Автор</th>
+            <th>Дата</th>
+            <th>Статус</th>
+            <th>Дії</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for n in news_list %}
+        <tr>
+            <td><strong>{{ n.title }}</strong></td>
+            <td>{{ n.author_name }}</td>
+            <td>{{ n.created_at }}</td>
+            <td>
+                {% if n.is_published %}
+                    <span class="badge-success">Опубліковано</span>
+                {% else %}
+                    <span class="badge-warning">Чернетка</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if n.is_published %}
+                    <form method="POST" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="action" value="unpublish">
+                        <input type="hidden" name="news_id" value="{{ n.id }}">
+                        <button type="submit" class="btn btn-sm btn-outline">В чернетки</button>
+                    </form>
+                {% else %}
+                    <form method="POST" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="action" value="publish">
+                        <input type="hidden" name="news_id" value="{{ n.id }}">
+                        <button type="submit" class="btn btn-sm btn-primary">Опублікувати</button>
+                    </form>
+                {% endif %}
+
+                <form method="POST" style="display:inline;" onsubmit="return confirm('Видалити новину?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="news_id" value="{{ n.id }}">
+                    <button type="submit" class="btn btn-sm btn-danger btn-outline">Видалити</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

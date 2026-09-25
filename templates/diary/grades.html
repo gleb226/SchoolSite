@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Електронний щоденник — Оцінки{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('book') }} Електронний щоденник</h1>
+    <p>Учень: <strong>{{ current_user.full_name }}</strong></p>
+</div>
+
+<div class="card filter-card" style="margin-bottom: 25px;">
+    <form method="GET" action="{{ url_for('diary.grades') }}" class="filter-form">
+        <div class="form-group inline-group">
+            <label for="subject_id">Предмет:</label>
+            <select name="subject_id" id="subject_id">
+                <option value="">-- Всі предмети --</option>
+                {% for s in subjects %}
+                    <option value="{{ s.id }}" {% if selected_subject == s.id %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group inline-group">
+            <label for="grade_type">Тип оцінки:</label>
+            <select name="grade_type" id="grade_type">
+                <option value="">-- Всі типи --</option>
+                <option value="current" {% if selected_type == 'current' %}selected{% endif %}>Поточна</option>
+                <option value="term" {% if selected_type == 'term' %}selected{% endif %}>Тематична / Семестрова</option>
+                <option value="yearly" {% if selected_type == 'yearly' %}selected{% endif %}>Річна</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-sm btn-primary">Фільтрувати</button>
+        <a href="{{ url_for('diary.grades') }}" class="btn btn-sm btn-outline">Скинути</a>
+    </form>
+</div>
+
+{% if grades_by_date %}
+    {% for day, day_grades in grades_by_date.items() %}
+    <section class="diary-day">
+        <h3 class="diary-day-title">{{ icons.icon('calendar') }} {{ day }}</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Урок</th>
+                    <th>Предмет</th>
+                    <th>Оцінка</th>
+                    <th>Тип</th>
+                    <th>Вчитель</th>
+                    <th>Коментар</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for g in day_grades %}
+                <tr>
+                    <td>{{ g.lesson_number or '-' }}{% if g.lesson_topic %}<br><small>{{ g.lesson_topic }}</small>{% endif %}</td>
+                    <td><strong>{{ g.subject_name }}</strong></td>
+                    <td>
+                        <span class="grade-badge {% if g.grade >= 10 %}high{% elif g.grade >= 7 %}med{% else %}low{% endif %}">
+                            {{ g.grade }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if g.grade_type == 'current' %}Поточна
+                        {% elif g.grade_type == 'homework' %}Домашня
+                        {% elif g.grade_type == 'control' %}Контрольна
+                        {% elif g.grade_type == 'term' %}Тематична/Семестрова
+                        {% elif g.grade_type == 'yearly' %}Річна
+                        {% else %}{{ g.grade_type }}{% endif %}
+                    </td>
+                    <td>{{ g.teacher_name }}</td>
+                    <td>{{ g.comment or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endfor %}
+{% else %}
+    <div class="card">
+        <p>Оцінок за обраними критеріями не знайдено.</p>
+    </div>
+{% endif %}
+{% endblock %}

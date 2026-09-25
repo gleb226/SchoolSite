@@ -1,0 +1,1103 @@
+{% extends "base.html" %}
+{% block title %}Створення тесту — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('file-check') }} Створити новий тест / контрольну роботу</h1>
+    <p><a href="{{ url_for('tests.list_tests') }}">← До списку тестів</a></p>
+</div>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<!-- ═══ AI КАРТКА (містить і параметри генерації, і блок варіантів) ═══ -->
+<div style="margin-bottom: 25px; border-left: 5px solid #6366f1; background: #f8fafc;" class="card">
+    <div>
+        <h3 style="margin: 0; color: #312e81; display: flex; align-items: center; gap: 8px;">
+            {{ icons.icon('sparkles') }} AI Генератор тесту
+        </h3>
+        <p style="margin: 5px 0 0 0; color: #475569; font-size: 14px;">
+            Автоматичне створення якісних тестів за програмою МОН України за кілька секунд
+        </p>
+    </div>
+
+    <div style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="ai-subject">Предмет:</label>
+            <select id="ai-subject">
+                {% for s in subjects %}
+                    <option value="{{ s.name }}" {% if loop.first %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="ai-difficulty">Рівень складності:</label>
+            <select id="ai-difficulty">
+                <option value="базовий">Базовий (легкий)</option>
+                <option value="середній" selected>Середній (стандарт)</option>
+                <option value="поглиблений">Поглиблений (олімпіадний)</option>
+                <option value="НМТ">НМТ</option>
+            </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="ai-count">Кількість запитань:</label>
+            <input type="number" id="ai-count" value="12" min="1" max="200">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="ai-question-mode">Типи завдань:</label>
+            <select id="ai-question-mode">
+                <option value="auto" selected>Автоматично за складністю</option>
+                <option value="tests_only">Тільки тестові</option>
+                <option value="mixed">Тести + кілька відповідей + текстові</option>
+                <option value="nmt">НМТ-мікс</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-group" style="margin-top: 15px;">
+        <label for="ai-topic">Тема тесту (наприклад: «Квадратні рівняння та теорема Вієта»):</label>
+        <input type="text" id="ai-topic" placeholder="Введіть тему або оберіть зі швидких підказок нижче...">
+        <div id="ai-topic-chips" style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;"></div>
+    </div>
+
+    <!-- Кількість варіантів — прямо в AI карточці -->
+    <div style="margin-top: 14px; padding: 14px 16px; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px;">
+        <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <label for="variant-count" style="font-weight:600; color:#3730a3; white-space:nowrap; margin:0;">🎲 Кількість варіантів:</label>
+                <input type="number" id="variant-count" value="1" min="1" max="30"
+                       style="width:65px; font-size:16px; font-weight:700; text-align:center;
+                              border:2px solid #6366f1; border-radius:6px; padding:3px 6px;
+                              background:#fff; color:#312e81;">
+                <span style="font-size:12px; color:#6366f1;">(1–30)</span>
+            </div>
+            <span id="variant-mode-label" style="font-size:13px; color:#4338ca; font-weight:500;"></span>
+        </div>
+
+        <!-- Базові можливості — завжди активні, просто інформація -->
+        <div style="margin-top:10px; display:flex; flex-direction:column; gap:4px;">
+            <div style="font-size:12px; color:#6366f1;">
+                ✅ Питання та відповіді завжди перемішуються — кожен учень бачить інший порядок
+            </div>
+            <div id="numbers-hint" style="font-size:12px; color:#6366f1; display:none;">
+                ✅ Числові дані в задачах будуть змінені так, щоб завдання залишались розв'язними
+            </div>
+        </div>
+
+        <!-- При 2+ варіантах — просто показуємо підказку, без жодного вибору -->
+        <div id="multi-variant-opts" style="display:none; margin-top:8px;">
+            <div style="font-size:12px; color:#6366f1;" id="multi-variant-hint"></div>
+        </div>
+    </div>
+
+    <div style="display: flex; gap: 10px; align-items: center; margin-top: 15px; flex-wrap:wrap;">
+        <button type="button" id="btn-ai-generate" class="btn btn-primary"
+                style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border: none;">
+            {{ icons.icon('sparkles') }} Згенерувати тест через AI
+        </button>
+        <span id="ai-status" style="font-size: 14px; font-weight: 500; color: #64748b;"></span>
+    </div>
+</div>
+
+<form method="POST" class="standard-form card" id="create-test-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" id="topic" name="topic" value="">
+    <input type="hidden" name="shuffle_questions" id="hidden-shuffle-questions" value="1">
+    <input type="hidden" name="shuffle_options" id="hidden-shuffle-options" value="1">
+    <input type="hidden" id="variants-data-json" name="variants_data_json" value="">
+    <input type="hidden" id="hidden-num-variants" name="num_variants" value="1">
+
+    <h3>Основні параметри</h3>
+    <div class="form-group">
+        <label for="title">Назва тесту *:</label>
+        <input type="text" id="title" name="title" required placeholder="Наприклад: Підсумкова контрольна робота за I семестр">
+    </div>
+
+    <div class="form-group">
+        <label for="description">Опис / тема:</label>
+        <textarea id="description" name="description" rows="3" placeholder="Вкажіть теми, які охоплює тест..."></textarea>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="form-group">
+            <label for="subject_id">Предмет *:</label>
+            <select id="subject_id" name="subject_id" required>
+                <option value="">-- Оберіть предмет --</option>
+                {% for s in subjects %}
+                    <option value="{{ s.id }}" data-name="{{ s.name }}">{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="class_id">Клас *:</label>
+            <select id="class_id" name="class_id" required>
+                <option value="">-- Оберіть клас --</option>
+                {% for c in classes %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="time_limit_minutes">Обмеження часу (хв.):</label>
+            <input type="number" id="time_limit_minutes" name="time_limit_minutes" value="45" min="1">
+        </div>
+
+        <div class="form-group">
+            <label for="max_attempts">Кількість спроб:</label>
+            <input type="number" id="max_attempts" name="max_attempts" value="1" min="1" max="5">
+        </div>
+    </div>
+
+    <hr style="margin: 30px 0;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap:wrap; gap:10px;">
+        <h3>Питання тесту</h3>
+        <button type="button" id="add-question-btn" class="btn btn-outline">+ Додати питання вручну</button>
+    </div>
+
+    <div id="questions-container">
+        <div class="card question-editor-block" data-index="0" style="margin-bottom: 20px; background: #fdfdfd; border: 1px solid #ccc;">
+            <div style="display: flex; justify-content: space-between;">
+                <strong>Питання #1</strong>
+            </div>
+            <div class="form-group" style="margin-top: 10px;">
+                <label>Текст питання *:</label>
+                <input type="text" name="question_text[]" required placeholder="Введіть формулювання питання...">
+            </div>
+            <div class="dashboard-grid">
+                <div class="form-group">
+                    <label>Тип питання:</label>
+                    <select name="question_type[]" class="question-type-select">
+                        <option value="single">Один правильний варіант</option>
+                        <option value="multiple">Кілька правильних варіантів</option>
+                        <option value="text">Вільна відповідь (текстова)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Бали:</label>
+                    <input type="number" name="question_points[]" value="1" min="1">
+                </div>
+            </div>
+            <div class="options-container">
+                <label>Варіанти відповідей (відмітьте правильний радіокнопкою):</label>
+                <div class="option-row" style="margin: 8px 0; display:flex; align-items:center; gap: 10px;">
+                    <input type="radio" name="correct_0[]" value="0" checked title="Правильний варіант">
+                    <input type="text" name="options_0[]" placeholder="Варіант 1" required style="flex: 1;">
+                </div>
+                <div class="option-row" style="margin: 8px 0; display:flex; align-items:center; gap: 10px;">
+                    <input type="radio" name="correct_0[]" value="1" title="Правильний варіант">
+                    <input type="text" name="options_0[]" placeholder="Варіант 2" required style="flex: 1;">
+                </div>
+                <div class="option-row" style="margin: 8px 0; display:flex; align-items:center; gap: 10px;">
+                    <input type="radio" name="correct_0[]" value="2" title="Правильний варіант">
+                    <input type="text" name="options_0[]" placeholder="Варіант 3" style="flex: 1;">
+                </div>
+                <div class="option-row" style="margin: 8px 0; display:flex; align-items:center; gap: 10px;">
+                    <input type="radio" name="correct_0[]" value="3" title="Правильний варіант">
+                    <input type="text" name="options_0[]" placeholder="Варіант 4" style="flex: 1;">
+                </div>
+            </div>
+            <div class="form-group" style="margin-top: 10px;">
+                <label>Пояснення до запитання (для учнів після завершення):</label>
+                <input type="text" name="question_explanation[]" placeholder="Чому ця відповідь правильна...">
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 30px;">
+        <button type="submit" class="btn btn-primary" style="font-size: 16px; padding: 10px 25px;">Зберегти та опублікувати тест</button>
+    </div>
+</form>
+
+<script>
+    const curriculumTopics = {{ curriculum_topics | tojson }};
+    let questionCounter = 1;
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // FORMULA PALETTE — all school formulas 1–11 class, grouped by category
+    // ══════════════════════════════════════════════════════════════════════════
+    const FORMULA_CATEGORIES = [
+      {
+        name: '🔢 Числа і дії',
+        items: [
+          { label: '±',     title: 'Плюс-мінус',          tpl: '$\\pm$' },
+          { label: '≠',     title: 'Не рівно',             tpl: '$\\neq$' },
+          { label: '≤',     title: '≤ (менше або рівно)',  tpl: '$\\leq$' },
+          { label: '≥',     title: '≥ (більше або рівно)', tpl: '$\\geq$' },
+          { label: '≈',     title: 'Приблизно',            tpl: '$\\approx$' },
+          { label: '∞',     title: 'Нескінченність',       tpl: '$\\infty$' },
+          { label: '|x|',   title: 'Модуль',               tpl: '$|x|$' },
+          { label: '⌊x⌋',  title: 'Ціла частина',         tpl: '$\\lfloor x \\rfloor$' },
+          { label: 'n!',    title: 'Факторіал',            tpl: '$n!$' },
+          { label: 'Cₙᵏ',  title: 'Біном. коефіцієнт',   tpl: '$C_n^k$' },
+        ]
+      },
+      {
+        name: '🔡 Степені і корені',
+        items: [
+          { label: 'x²',    title: 'Квадрат',              tpl: 'DIALOG_SQ',    dialog: { type:'sq' } },
+          { label: 'xⁿ',   title: 'Степінь n',            tpl: 'DIALOG_POW',   dialog: { type:'pow' } },
+          { label: '√x',   title: 'Квадратний корінь',    tpl: 'DIALOG_SQRT',  dialog: { type:'sqrt' } },
+          { label: '∛x',   title: 'Кубічний корінь',      tpl: '$\\sqrt[3]{x}$' },
+          { label: 'ⁿ√x',  title: 'Корінь n-го ступеня', tpl: 'DIALOG_NROOT', dialog: { type:'nroot' } },
+          { label: 'x⁻¹',  title: 'Обернене',             tpl: '$x^{-1}$' },
+          { label: 'xⁿ/ᵐ', title: 'Дробовий степінь',    tpl: 'DIALOG_FRAC_POW', dialog: { type:'fracpow' } },
+        ]
+      },
+      {
+        name: '➗ Дроби',
+        items: [
+          { label: 'a/b',   title: 'Звичайний дріб',       tpl: 'DIALOG_FRAC', dialog: { type:'frac' } },
+          { label: 'a⁻¹',  title: 'Обернений дріб',       tpl: '$\\frac{1}{a}$' },
+          { label: 'xₙ',   title: 'Нижній індекс',        tpl: 'DIALOG_IDX',  dialog: { type:'idx' } },
+        ]
+      },
+      {
+        name: '📐 Алгебра',
+        items: [
+          { label: 'D=…',   title: 'Дискримінант',         tpl: '$D = b^{2} - 4ac$' },
+          { label: 'x₁₂',  title: 'Формула коренів квадр. рів.', tpl: '$x_{1,2} = \\dfrac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$' },
+          { label: 'Vієта', title: 'Теорема Вієта',        tpl: '$x_1 + x_2 = -\\dfrac{b}{a},\\quad x_1 x_2 = \\dfrac{c}{a}$' },
+          { label: '(a+b)²',title: 'Квадрат суми',        tpl: '$(a+b)^2 = a^2 + 2ab + b^2$' },
+          { label: '(a-b)²',title: 'Квадрат різниці',     tpl: '$(a-b)^2 = a^2 - 2ab + b^2$' },
+          { label: 'a²-b²', title: 'Різниця квадратів',   tpl: '$a^2 - b^2 = (a-b)(a+b)$' },
+          { label: '(a+b)³',title: 'Куб суми',            tpl: '$(a+b)^3 = a^3 + 3a^2b + 3ab^2 + b^3$' },
+          { label: 'a³-b³', title: 'Різниця кубів',       tpl: '$a^3 - b^3 = (a-b)(a^2+ab+b^2)$' },
+          { label: 'a³+b³', title: 'Сума кубів',          tpl: '$a^3 + b^3 = (a+b)(a^2-ab+b^2)$' },
+          { label: '∑',     title: 'Сума',                 tpl: '$\\sum_{i=1}^{n} i$' },
+          { label: 'AP sₙ', title: 'Сума арифм. прогр.',  tpl: '$S_n = \\dfrac{n(a_1 + a_n)}{2}$' },
+          { label: 'GP sₙ', title: 'Сума геом. прогр.',   tpl: '$S_n = a_1 \\cdot \\dfrac{q^n - 1}{q - 1}$' },
+        ]
+      },
+      {
+        name: '📏 Геометрія',
+        items: [
+          { label: 'S□',    title: 'Площа прямокутника',  tpl: '$S = a \\cdot b$' },
+          { label: 'S△',    title: 'Площа трикутника',    tpl: '$S = \\dfrac{1}{2} a h$' },
+          { label: 'S Герон',title: 'Формула Герона',     tpl: '$S = \\sqrt{p(p-a)(p-b)(p-c)},\\; p=\\dfrac{a+b+c}{2}$' },
+          { label: 'S○',    title: 'Площа круга',         tpl: '$S = \\pi r^2$' },
+          { label: 'C○',    title: 'Довжина кола',        tpl: '$C = 2\\pi r$' },
+          { label: 'Піфаг', title: 'Теорема Піфагора',   tpl: '$a^2 + b^2 = c^2$' },
+          { label: 'V куб', title: 'Об\'єм куба',         tpl: '$V = a^3$' },
+          { label: 'V цил', title: 'Об\'єм циліндра',     tpl: '$V = \\pi r^2 h$' },
+          { label: 'V кул', title: 'Об\'єм кулі',         tpl: '$V = \\dfrac{4}{3}\\pi r^3$' },
+          { label: 'S пов', title: 'Поверхня кулі',       tpl: '$S = 4\\pi r^2$' },
+          { label: 'V кон', title: 'Об\'єм конуса',       tpl: '$V = \\dfrac{1}{3}\\pi r^2 h$' },
+          { label: 'd стр', title: 'Відстань між точками', tpl: '$d = \\sqrt{(x_2-x_1)^2+(y_2-y_1)^2}$' },
+          { label: 'cos th',title: 'Теорема косинусів',   tpl: '$c^2 = a^2 + b^2 - 2ab\\cos C$' },
+          { label: 'sin th',title: 'Теорема синусів',     tpl: '$\\dfrac{a}{\\sin A} = \\dfrac{b}{\\sin B} = 2R$' },
+        ]
+      },
+      {
+        name: '📐 Тригонометрія',
+        items: [
+          { label: 'sin',   title: 'Синус',               tpl: '$\\sin x$' },
+          { label: 'cos',   title: 'Косинус',             tpl: '$\\cos x$' },
+          { label: 'tg',    title: 'Тангенс',             tpl: '$\\tan x$' },
+          { label: 'ctg',   title: 'Котангенс',           tpl: '$\\cot x$' },
+          { label: 'arcsin',title: 'Арксинус',            tpl: '$\\arcsin x$' },
+          { label: 'arccos',title: 'Арккосинус',          tpl: '$\\arccos x$' },
+          { label: 'arctg', title: 'Арктангенс',          tpl: '$\\arctan x$' },
+          { label: 'sin²+cos²',title: 'Основна тожд.',   tpl: '$\\sin^2 x + \\cos^2 x = 1$' },
+          { label: 'sin 2x',title: 'sin подвійного',      tpl: '$\\sin 2x = 2\\sin x \\cos x$' },
+          { label: 'cos 2x',title: 'cos подвійного',      tpl: '$\\cos 2x = \\cos^2 x - \\sin^2 x$' },
+          { label: 'sin(a±b)',title: 'Сума кутів sin',   tpl: '$\\sin(a \\pm b) = \\sin a\\cos b \\pm \\cos a\\sin b$' },
+          { label: 'cos(a±b)',title: 'Сума кутів cos',   tpl: '$\\cos(a \\pm b) = \\cos a\\cos b \\mp \\sin a\\sin b$' },
+          { label: 'π',     title: 'Пі',                  tpl: '$\\pi$' },
+        ]
+      },
+      {
+        name: '📈 Показникова та логарифмічна',
+        items: [
+          { label: 'aˣ',    title: 'Показникова функція', tpl: '$a^x$' },
+          { label: 'eˣ',    title: 'Натуральна показн.',  tpl: '$e^x$' },
+          { label: 'log',   title: 'Логарифм',            tpl: 'DIALOG_LOG',   dialog: { type:'log' } },
+          { label: 'lg',    title: 'Десятковий логарифм', tpl: '$\\lg x$' },
+          { label: 'ln',    title: 'Натуральний логарифм',tpl: '$\\ln x$' },
+          { label: 'log(ab)',title: 'log суми',           tpl: '$\\log_a(xy) = \\log_a x + \\log_a y$' },
+          { label: 'log(a/b)',title: 'log різниці',       tpl: '$\\log_a\\dfrac{x}{y} = \\log_a x - \\log_a y$' },
+          { label: 'log xⁿ',title: 'log степеня',        tpl: '$\\log_a x^n = n \\log_a x$' },
+          { label: 'формула переходу',title: 'Заміна основи', tpl: '$\\log_a b = \\dfrac{\\log_c b}{\\log_c a}$' },
+        ]
+      },
+      {
+        name: "∂ Похідна і інтеграл (10–11 кл.)",
+        items: [
+          { label: "f'(x)", title: 'Похідна',             tpl: "$f'(x)$" },
+          { label: "(xⁿ)'", title: '(xⁿ)\'= nxⁿ⁻¹',    tpl: "$(x^n)' = nx^{n-1}$" },
+          { label: "(sin)'",title: 'Похідна sin',         tpl: "$(\\sin x)' = \\cos x$" },
+          { label: "(cos)'",title: 'Похідна cos',         tpl: "$(\\cos x)' = -\\sin x$" },
+          { label: "(eˣ)'", title: 'Похідна eˣ',         tpl: "$(e^x)' = e^x$" },
+          { label: "(ln)'", title: 'Похідна ln',          tpl: "$(\\ln x)' = \\dfrac{1}{x}$" },
+          { label: "(uv)'", title: 'Похідна добутку',     tpl: "$(uv)' = u'v + uv'$" },
+          { label: "(u/v)'",title: 'Похідна частки',      tpl: "\\left(\\dfrac{u}{v}\\right)' = \\dfrac{u'v - uv'}{v^2}" },
+          { label: '∫xⁿ',  title: 'Інтеграл xⁿ',        tpl: '$\\int x^n\\,dx = \\dfrac{x^{n+1}}{n+1} + C$' },
+          { label: '∫sin',  title: 'Інтеграл sin',        tpl: '$\\int \\sin x\\,dx = -\\cos x + C$' },
+          { label: '∫cos',  title: 'Інтеграл cos',        tpl: '$\\int \\cos x\\,dx = \\sin x + C$' },
+          { label: '∫eˣ',  title: 'Інтеграл eˣ',         tpl: '$\\int e^x\\,dx = e^x + C$' },
+          { label: '∫1/x',  title: 'Інтеграл 1/x',       tpl: '$\\int \\dfrac{1}{x}\\,dx = \\ln|x| + C$' },
+          { label: '∫ᵃᵇ',   title: 'Визначений інтеграл', tpl: '$\\int_a^b f(x)\\,dx$' },
+          { label: 'Ньютон', title: 'Формула Ньютона-Лейбніца', tpl: '$\\int_a^b f(x)\\,dx = F(b) - F(a)$' },
+        ]
+      },
+      {
+        name: '⚗️ Фізика',
+        items: [
+          { label: 'v=s/t',  title: 'Швидкість',           tpl: '$v = \\dfrac{s}{t}$' },
+          { label: 'F=ma',   title: '2-й закон Ньютона',   tpl: '$F = ma$' },
+          { label: 'p=mv',   title: 'Імпульс',             tpl: '$p = mv$' },
+          { label: 'Ek',     title: 'Кінетична енергія',   tpl: '$E_k = \\dfrac{mv^2}{2}$' },
+          { label: 'Ep',     title: 'Потенційна енергія',  tpl: '$E_p = mgh$' },
+          { label: 'W=Fs',   title: 'Робота',              tpl: '$W = Fs\\cos\\alpha$' },
+          { label: 'P=W/t',  title: 'Потужність',          tpl: '$P = \\dfrac{W}{t}$' },
+          { label: 'η',      title: 'ККД',                 tpl: '$\\eta = \\dfrac{A_{кор}}{A_{повн}} \\cdot 100\\%$' },
+          { label: 'ρ=m/V',  title: 'Густина',             tpl: '$\\rho = \\dfrac{m}{V}$' },
+          { label: 'p=F/S',  title: 'Тиск',                tpl: '$p = \\dfrac{F}{S}$' },
+          { label: "Архімед",title: 'Сила Архімеда',       tpl: '$F_A = \\rho g V$' },
+          { label: 'Q=mcΔT', title: 'Кількість теплоти',  tpl: '$Q = mc\\Delta T$' },
+          { label: 'U=IR',   title: 'Закон Ома',           tpl: '$U = IR$' },
+          { label: 'P=UI',   title: 'Потужність струму',   tpl: '$P = UI$' },
+          { label: 'λ=c/ν',  title: 'Довжина хвилі',      tpl: '$\\lambda = \\dfrac{c}{\\nu}$' },
+          { label: 'E=mc²',  title: 'Рівняння Ейнштейна', tpl: '$E = mc^2$' },
+        ]
+      },
+      {
+        name: '🧪 Хімія',
+        items: [
+          { label: 'M=m/n',  title: 'Молярна маса',        tpl: '$M = \\dfrac{m}{n}$' },
+          { label: 'n=m/M',  title: 'Кількість речовини',  tpl: '$n = \\dfrac{m}{M}$' },
+          { label: 'N=nNₐ',  title: 'Число молекул',       tpl: '$N = n \\cdot N_A$' },
+          { label: 'PV=nRT', title: 'Рівняння Менделєєва-Клапейрона', tpl: '$PV = nRT$' },
+          { label: 'ω',      title: 'Масова частка',       tpl: '$\\omega = \\dfrac{m_{речовини}}{m_{розчину}} \\cdot 100\\%$' },
+          { label: 'c=n/V',  title: 'Молярна концентрація',tpl: '$c = \\dfrac{n}{V}$' },
+          { label: 'Rзаг',   title: 'Закон зб. маси',      tpl: '$\\sum m_{реаг} = \\sum m_{прод}$' },
+          { label: 'pH',     title: 'pH розчину',          tpl: '$\\text{pH} = -\\lg[\\text{H}^+]$' },
+        ]
+      },
+      {
+        name: '→ Вектори',
+        items: [
+          { label: 'vec a', title: 'Вектор',               tpl: '$\\vec{a}$' },
+          { label: '|a|',  title: 'Довжина вектора',       tpl: '$|\\vec{a}|$' },
+          { label: 'a·b',  title: 'Скалярний добуток',     tpl: '$\\vec{a} \\cdot \\vec{b} = |\\vec{a}||\\vec{b}|\\cos\\theta$' },
+          { label: 'a×b',  title: 'Векторний добуток',     tpl: '$|\\vec{a} \\times \\vec{b}| = |\\vec{a}||\\vec{b}|\\sin\\theta$' },
+        ]
+      },
+    ];
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // FORMULA POPUP — global singleton
+    // ══════════════════════════════════════════════════════════════════════════
+    (function buildFormulaPopup() {
+        // Overlay backdrop
+        const backdrop = document.createElement('div');
+        backdrop.id = 'formula-backdrop';
+        backdrop.style.cssText = 'display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.45);';
+        document.body.appendChild(backdrop);
+
+        // Popup panel
+        const popup = document.createElement('div');
+        popup.id = 'formula-popup';
+        popup.style.cssText = `
+            display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+            z-index:9001;background:#fff;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.3);
+            width:min(680px,96vw);max-height:82vh;overflow:hidden;
+            display:none;flex-direction:column;`;
+        popup.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
+                        border-bottom:1px solid #e2e8f0;background:#f8fafc;border-radius:12px 12px 0 0;">
+                <strong style="font-size:16px;">∑ Вставити формулу</strong>
+                <button id="formula-popup-close" type="button"
+                        style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1;">&times;</button>
+            </div>
+            <div style="display:flex;flex:1;overflow:hidden;">
+                <!-- category list -->
+                <div id="fcat-list" style="width:175px;flex-shrink:0;overflow-y:auto;
+                     border-right:1px solid #e2e8f0;padding:8px 0;background:#f1f5f9;"></div>
+                <!-- formula grid -->
+                <div style="flex:1;overflow-y:auto;padding:14px 12px;">
+                    <div id="fcat-title" style="font-weight:700;color:#1e3a5f;margin-bottom:10px;font-size:14px;"></div>
+                    <div id="fformula-grid" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                </div>
+            </div>
+            <div id="formula-preview-bar" style="padding:10px 18px;background:#f0f9ff;
+                 border-top:1px solid #bae6fd;font-size:14px;color:#0c4a6e;min-height:44px;
+                 display:flex;align-items:center;gap:10px;">
+                <span style="color:#64748b;font-size:12px;">Наведіть на формулу для перегляду</span>
+            </div>`;
+        document.body.appendChild(popup);
+
+        // Mini-dialog for parameterized formulas
+        const miniDialog = document.createElement('div');
+        miniDialog.id = 'formula-mini-dialog';
+        miniDialog.style.cssText = `
+            display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+            z-index:9100;background:#fff;border-radius:10px;box-shadow:0 6px 30px rgba(0,0,0,.35);
+            padding:22px 26px;width:min(360px,90vw);`;
+        document.body.appendChild(miniDialog);
+
+        const catList    = popup.querySelector('#fcat-list');
+        const catTitle   = popup.querySelector('#fcat-title');
+        const formulaGrid= popup.querySelector('#fformula-grid');
+        const previewBar = popup.querySelector('#formula-preview-bar');
+        let activeTarget = null;  // the input to insert into
+
+        // Build category sidebar
+        FORMULA_CATEGORIES.forEach((cat, ci) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.dataset.ci = ci;
+            btn.textContent = cat.name;
+            btn.style.cssText = `display:block;width:100%;text-align:left;padding:9px 14px;
+                border:none;background:none;cursor:pointer;font-size:12px;line-height:1.3;
+                border-left:3px solid transparent;`;
+            btn.addEventListener('click', () => showCategory(ci));
+            catList.appendChild(btn);
+        });
+
+        function showCategory(ci) {
+            catList.querySelectorAll('button').forEach((b,i) => {
+                b.style.background = i === ci ? '#dbeafe' : 'none';
+                b.style.borderLeftColor = i === ci ? '#3b82f6' : 'transparent';
+                b.style.fontWeight = i === ci ? '700' : '400';
+            });
+            const cat = FORMULA_CATEGORIES[ci];
+            catTitle.textContent = cat.name;
+            formulaGrid.innerHTML = '';
+            cat.items.forEach(item => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.title = item.title;
+                btn.style.cssText = `padding:7px 12px;font-size:13px;border:1px solid #cbd5e1;
+                    border-radius:6px;background:#f8fafc;cursor:pointer;white-space:nowrap;
+                    transition:background .15s;`;
+                btn.textContent = item.label;
+                btn.addEventListener('mouseenter', () => {
+                    btn.style.background = '#dbeafe';
+                    const tpl = item.tpl.startsWith('DIALOG_') ? '(відкриє діалог введення)' : item.tpl;
+                    previewBar.innerHTML = `<span style="font-size:11px;color:#64748b;">${escapeHtml(item.title)}:</span>&nbsp;`;
+                    if (!tpl.startsWith('(')) {
+                        const span = document.createElement('span');
+                        span.textContent = tpl;
+                        previewBar.appendChild(span);
+                        if (window.renderMathInElement) {
+                            renderMathInElement(span, {
+                                delimiters:[{left:'$',right:'$',display:false},{left:'$$',right:'$$',display:true}],
+                                throwOnError:false
+                            });
+                        }
+                    } else {
+                        previewBar.innerHTML += `<em style="color:#64748b;">${tpl}</em>`;
+                    }
+                });
+                btn.addEventListener('mouseleave', () => { btn.style.background = '#f8fafc'; });
+                btn.addEventListener('click', () => handleFormulaClick(item));
+                formulaGrid.appendChild(btn);
+            });
+        }
+
+        function handleFormulaClick(item) {
+            if (!activeTarget) return;
+            if (item.tpl.startsWith('DIALOG_')) {
+                openMiniDialog(item, activeTarget);
+            } else {
+                insertAtCursor(activeTarget, item.tpl);
+                closePopup();
+            }
+        }
+
+        // ── Mini dialog for parameterized formulas ─────────────────────────
+        function openMiniDialog(item, target) {
+            const dtype = item.dialog.type;
+            let html = '';
+            if (dtype === 'sq') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">x² — Квадрат числа або виразу</div>
+                    <div style="margin-bottom:10px;"><label style="font-size:13px;">Основа (x):</label>
+                    <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'pow') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">xⁿ — Степінь</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Основа (x):</label>
+                        <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Показник (n):</label>
+                        <input id="md-b" class="md-inp" value="n" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'sqrt') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">√x — Квадратний корінь</div>
+                    <div style="margin-bottom:10px;"><label style="font-size:13px;">Вираз під коренем:</label>
+                    <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'nroot') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">ⁿ√x — Корінь n-го степеня</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Степінь (n):</label>
+                        <input id="md-b" class="md-inp" value="n" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Вираз під коренем:</label>
+                        <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'frac') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">a/b — Дріб</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Чисельник (a):</label>
+                        <input id="md-a" class="md-inp" value="a" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Знаменник (b):</label>
+                        <input id="md-b" class="md-inp" value="b" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'fracpow') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">xⁿ/ᵐ — Дробовий степінь</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Основа (x):</label>
+                        <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Числ. (n):</label>
+                        <input id="md-b" class="md-inp" value="n" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Знамен. (m):</label>
+                        <input id="md-c" class="md-inp" value="m" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'log') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">logₐ(b) — Логарифм</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Основа (a):</label>
+                        <input id="md-a" class="md-inp" value="a" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Аргумент (b):</label>
+                        <input id="md-b" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'idx') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">xₙ — Нижній індекс</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Змінна (x):</label>
+                        <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Індекс (n):</label>
+                        <input id="md-b" class="md-inp" value="n" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            }
+
+            miniDialog.innerHTML = html;
+            miniDialog.style.display = 'block';
+
+            function buildLatex() {
+                const a = miniDialog.querySelector('#md-a')?.value || '';
+                const b = miniDialog.querySelector('#md-b')?.value || '';
+                const c = miniDialog.querySelector('#md-c')?.value || '';
+                switch (dtype) {
+                    case 'sq':       return `$${a}^{2}$`;
+                    case 'pow':      return `$${a}^{${b}}$`;
+                    case 'sqrt':     return `$\\sqrt{${a}}$`;
+                    case 'nroot':    return `$\\sqrt[${b}]{${a}}$`;
+                    case 'frac':     return `$\\frac{${a}}{${b}}$`;
+                    case 'fracpow':  return `$${a}^{\\frac{${b}}{${c}}}$`;
+                    case 'log':      return `$\\log_{${a}}(${b})$`;
+                    case 'idx':      return `$${a}_{${b}}$`;
+                }
+                return '';
+            }
+
+            function updateMdPreview() {
+                const prev = miniDialog.querySelector('#md-preview');
+                if (!prev) return;
+                const latex = buildLatex();
+                prev.textContent = latex;
+                if (window.renderMathInElement) {
+                    renderMathInElement(prev, {
+                        delimiters:[{left:'$',right:'$',display:false},{left:'$$',right:'$$',display:true}],
+                        throwOnError:false
+                    });
+                }
+            }
+
+            miniDialog.querySelectorAll('.md-inp').forEach(inp => {
+                inp.addEventListener('input', updateMdPreview);
+            });
+            updateMdPreview();
+
+            miniDialog.querySelector('#md-cancel').addEventListener('click', () => {
+                miniDialog.style.display = 'none';
+            });
+            miniDialog.querySelector('#md-ok').addEventListener('click', () => {
+                const latex = buildLatex();
+                if (latex && target) {
+                    insertAtCursor(target, latex);
+                }
+                miniDialog.style.display = 'none';
+                closePopup();
+            });
+
+            // Focus first input
+            miniDialog.querySelector('#md-a, #md-b')?.focus();
+        }
+
+        function insertAtCursor(input, text) {
+            const s = input.selectionStart;
+            const e = input.selectionEnd;
+            input.value = input.value.substring(0, s) + text + input.value.substring(e);
+            const newPos = s + text.length;
+            input.setSelectionRange(newPos, newPos);
+            input.focus();
+            updatePreview(input);
+        }
+
+        function closePopup() {
+            popup.style.display = 'none';
+            backdrop.style.display = 'none';
+        }
+
+        popup.querySelector('#formula-popup-close').addEventListener('click', closePopup);
+        backdrop.addEventListener('click', closePopup);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePopup(); miniDialog.style.display='none'; } });
+
+        // Public API
+        window._formulaPopup = {
+            open(targetInput) {
+                activeTarget = targetInput;
+                popup.style.cssText = popup.style.cssText.replace('display:none', 'display:flex');
+                popup.style.display = 'flex';
+                backdrop.style.display = 'block';
+                showCategory(0);
+            }
+        };
+    })();
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // LIVE PREVIEW for any input containing $ or \
+    // ══════════════════════════════════════════════════════════════════════════
+    function updatePreview(input) {
+        const preview = input._katexPreview;
+        if (!preview) return;
+        const raw = input.value.trim();
+        if (!raw) { preview.innerHTML = ''; preview.style.display='none'; return; }
+        const hasMath = raw.includes('$') || raw.includes('\\');
+        preview.style.display = hasMath ? 'block' : 'none';
+        if (!hasMath) return;
+        try {
+            preview.textContent = raw;
+            if (window.renderMathInElement) {
+                renderMathInElement(preview, {
+                    delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],
+                    throwOnError:false
+                });
+            }
+        } catch(e) {}
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ATTACH formula button + preview to an input
+    // ══════════════════════════════════════════════════════════════════════════
+    function attachFormulaSupport(input) {
+        if (input._formulaAttached) return;
+        input._formulaAttached = true;
+
+        // Wrapper
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:2px;';
+        input.parentNode.insertBefore(wrap, input);
+
+        // ∑ Button
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.title = 'Вставити формулу';
+        btn.style.cssText = `padding:3px 10px;font-size:13px;border:1px solid #6366f1;border-radius:6px;
+            background:#eef2ff;color:#4f46e5;cursor:pointer;white-space:nowrap;flex-shrink:0;
+            transition:background .15s;`;
+        btn.innerHTML = '∑ Формули';
+        btn.addEventListener('click', () => window._formulaPopup.open(input));
+        wrap.appendChild(btn);
+
+        // Move original input into wrapper
+        wrap.appendChild(input);
+
+        // Preview div
+        const preview = document.createElement('div');
+        preview.style.cssText = 'margin-top:3px;padding:5px 10px;background:#f0f9ff;border:1px solid #bae6fd;'+
+            'border-radius:4px;font-size:14px;min-height:28px;color:#0c4a6e;display:none;';
+        preview.title = 'Попередній перегляд формули';
+        input._katexPreview = preview;
+        input.parentNode.insertBefore(preview, input.nextSibling);
+
+        input.addEventListener('input', () => updatePreview(input));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PHOTO UPLOAD for a question block
+    // ══════════════════════════════════════════════════════════════════════════
+    function buildPhotoSection(idx) {
+        const div = document.createElement('div');
+        div.className = 'q-photo-section';
+        div.style.cssText = 'margin-top:10px;';
+        div.innerHTML = `
+            <label style="font-size:13px;font-weight:600;color:#374151;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <span>📷 Фото до питання</span>
+                <input type="file" class="q-photo-file" accept="image/*"
+                       style="display:none;">
+                <span class="btn btn-sm btn-outline" style="font-size:12px;padding:2px 8px;">Обрати файл</span>
+            </label>
+            <input type="hidden" name="q_image[]" class="q-photo-hidden" value="">
+            <div class="q-photo-preview" style="margin-top:6px;display:none;">
+                <img src="" alt="Фото питання" style="max-width:260px;max-height:180px;border-radius:6px;
+                     border:1px solid #cbd5e1;display:block;margin-bottom:4px;">
+                <button type="button" class="q-photo-remove btn btn-sm btn-outline"
+                        style="font-size:11px;padding:2px 8px;color:#dc2626;border-color:#dc2626;">
+                    ✕ Видалити фото
+                </button>
+            </div>`;
+
+        const fileInput  = div.querySelector('.q-photo-file');
+        const hiddenField= div.querySelector('.q-photo-hidden');
+        const previewDiv = div.querySelector('.q-photo-preview');
+        const previewImg = div.querySelector('.q-photo-preview img');
+        const removeBtn  = div.querySelector('.q-photo-remove');
+
+        // Trigger file input when clicking the label span
+        div.querySelector('.btn.btn-sm.btn-outline').addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Файл занадто великий (максимум 5 МБ)');
+                fileInput.value = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = e => {
+                hiddenField.value = e.target.result;  // base64 data URL
+                previewImg.src = e.target.result;
+                previewDiv.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        });
+
+        removeBtn.addEventListener('click', () => {
+            hiddenField.value = '';
+            previewImg.src = '';
+            previewDiv.style.display = 'none';
+            fileInput.value = '';
+        });
+
+        return div;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ATTACH all editor features to a question block
+    // ══════════════════════════════════════════════════════════════════════════
+    function attachFormulaToBlock(block) {
+        if (block._formulaAttached_root) return;
+        block._formulaAttached_root = true;
+        const qInput = block.querySelector('input[name="question_text[]"]');
+        if (qInput) attachFormulaSupport(qInput);
+        block.querySelectorAll('input[name^="options_"]').forEach(attachFormulaSupport);
+        // Add photo section after explanation
+        const explGroup = block.querySelector('input[name="question_explanation[]"]')?.closest('.form-group');
+        if (explGroup && !block.querySelector('.q-photo-section')) {
+            const idx = block.dataset.index || 0;
+            explGroup.after(buildPhotoSection(idx));
+        }
+    }
+
+    // Init on first load
+    document.querySelectorAll('.question-editor-block').forEach(attachFormulaToBlock);
+
+    // Watch for new blocks
+    const qContainer = document.getElementById('questions-container');
+    new MutationObserver(() => {
+        document.querySelectorAll('.question-editor-block').forEach(b => attachFormulaToBlock(b));
+    }).observe(qContainer, { childList: true, subtree: false });
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // TOPIC CHIPS
+    // ══════════════════════════════════════════════════════════════════════════
+    function updateTopicChips() {
+        const selSubject = document.getElementById('ai-subject').value;
+        const container = document.getElementById('ai-topic-chips');
+        container.innerHTML = '';
+        (curriculumTopics[selSubject] || []).forEach(t => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline';
+            btn.style.cssText = 'font-size: 11px; padding: 2px 8px; border-radius: 12px;';
+            btn.innerText = t;
+            btn.onclick = () => { document.getElementById('ai-topic').value = t; };
+            container.appendChild(btn);
+        });
+    }
+
+    document.getElementById('ai-subject').addEventListener('change', () => {
+        updateTopicChips();
+        const subjName = document.getElementById('ai-subject').value;
+        const mainSubj = document.getElementById('subject_id');
+        for (let opt of mainSubj.options) {
+            if (opt.dataset.name === subjName) { mainSubj.value = opt.value; break; }
+        }
+    });
+    updateTopicChips();
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // VARIANT BLOCK
+    // ══════════════════════════════════════════════════════════════════════════
+    const NUMBERS_SUBJECTS = ['Математика', 'Фізика', 'Хімія'];
+    const variantCountInput = document.getElementById('variant-count');
+    const multiOpts         = document.getElementById('multi-variant-opts');
+    const variantModeLabel  = document.getElementById('variant-mode-label');
+
+    function syncVariantBlock() {
+        const n = parseInt(variantCountInput.value) || 1;
+        const subj = document.getElementById('ai-subject').value;
+        const isNumbersSubject = NUMBERS_SUBJECTS.includes(subj);
+        document.getElementById('numbers-hint').style.display = isNumbersSubject ? 'block' : 'none';
+        if (n >= 2) {
+            multiOpts.style.display = 'block';
+            variantModeLabel.innerText = `→ ${n} варіантів для класу`;
+            const hint = document.getElementById('multi-variant-hint');
+            if (hint) {
+                hint.innerText = isNumbersSubject
+                    ? `✅ Кожен варіант матиме різні числові дані в задачах`
+                    : `✅ AI згенерує унікальні питання для кожного варіанту`;
+            }
+        } else {
+            multiOpts.style.display = 'none';
+            variantModeLabel.innerText = isNumbersSubject
+                ? '→ числа в задачах змінені, питання перемішані'
+                : '→ питання та відповіді перемішані';
+        }
+        document.getElementById('hidden-shuffle-questions').value = '1';
+        document.getElementById('hidden-shuffle-options').value = '1';
+    }
+
+    variantCountInput.addEventListener('input', syncVariantBlock);
+    document.getElementById('ai-subject').addEventListener('change', syncVariantBlock);
+    syncVariantBlock();
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // AI GENERATE
+    // ══════════════════════════════════════════════════════════════════════════
+    document.getElementById('btn-ai-generate').addEventListener('click', async () => {
+        const subject       = document.getElementById('ai-subject').value;
+        const topic         = document.getElementById('ai-topic').value.trim();
+        const count         = document.getElementById('ai-count').value;
+        const difficulty    = document.getElementById('ai-difficulty').value;
+        const question_mode = document.getElementById('ai-question-mode').value;
+        const statusElem    = document.getElementById('ai-status');
+        const numVariants   = parseInt(variantCountInput.value) || 1;
+
+        const isNumbersSubject = NUMBERS_SUBJECTS.includes(subject);
+        let variantType;
+        if (isNumbersSubject) { variantType = 'numbers'; }
+        else if (numVariants >= 2) { variantType = 'unique'; }
+        else { variantType = 'shuffle'; }
+
+        if (!topic) {
+            alert('Будь ласка, введіть або оберіть тему тесту!');
+            document.getElementById('ai-topic').focus();
+            return;
+        }
+
+        if (numVariants > 1) {
+            const typeLabel = { numbers: 'зміна чисел', unique: 'унікальні питання', shuffle: 'перемішування' };
+            statusElem.innerText = `⏳ Генерація ${numVariants} варіантів (${typeLabel[variantType]})... Зачекайте.`;
+        } else {
+            statusElem.innerText = '⏳ Генерація питань... Зачекайте.';
+        }
+        statusElem.style.color = '#4f46e5';
+        document.getElementById('btn-ai-generate').disabled = true;
+
+        try {
+            const resp = await fetch('/tests/api/ai-generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subject, topic, question_count: count, difficulty,
+                    question_mode, num_variants: numVariants, variant_type: variantType,
+                    shuffle_questions: true, shuffle_options: true })
+            });
+            const res = await resp.json();
+            if (!res.success) throw new Error(res.error || 'Помилка генерації');
+            const data = res.data;
+
+            if (res.variants_data && numVariants > 1) {
+                document.getElementById('variants-data-json').value = JSON.stringify(res.variants_data);
+                document.getElementById('hidden-num-variants').value = numVariants;
+                statusElem.innerText = `✅ Згенеровано ${numVariants} варіантів. Оберіть клас та натисніть «Зберегти».`;
+                statusElem.style.color = '#16a34a';
+            } else {
+                document.getElementById('variants-data-json').value = '';
+                document.getElementById('hidden-num-variants').value = '1';
+            }
+
+            document.getElementById('title').value = data.title || `Контрольна робота: ${topic}`;
+            document.getElementById('description').value = data.description || `Тестові завдання з теми: ${topic}`;
+            document.getElementById('topic').value = topic;
+            if (data.time_limit_minutes) document.getElementById('time_limit_minutes').value = data.time_limit_minutes;
+
+            const mainSubj = document.getElementById('subject_id');
+            for (let opt of mainSubj.options) {
+                if (opt.dataset.name === subject) { mainSubj.value = opt.value; break; }
+            }
+
+            const container = document.getElementById('questions-container');
+            container.innerHTML = '';
+            questionCounter = 0;
+
+            (data.questions || []).forEach((q, idx) => {
+                const block = buildQuestionBlock(idx, q);
+                container.appendChild(block);
+                questionCounter++;
+            });
+
+            if (numVariants <= 1) {
+                statusElem.innerText = `✅ Успішно згенеровано ${data.questions.length} питань. Перевірте та відредагуйте.`;
+                statusElem.style.color = '#16a34a';
+            }
+        } catch (err) {
+            console.error(err);
+            statusElem.innerText = '❌ ' + err.message;
+            statusElem.style.color = '#dc2626';
+        } finally {
+            document.getElementById('btn-ai-generate').disabled = false;
+        }
+    });
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // BUILD QUESTION BLOCK HTML (reused by AI fill + manual add)
+    // ══════════════════════════════════════════════════════════════════════════
+    function buildQuestionBlock(idx, q) {
+        const block = document.createElement('div');
+        block.className = 'card question-editor-block';
+        block.dataset.index = idx;
+        block.style.cssText = 'margin-bottom: 20px; background: #fdfdfd; border: 1px solid #ccc;';
+
+        const qType     = (q && q.question_type) || 'single';
+        const inputType = qType === 'multiple' ? 'checkbox' : 'radio';
+        const qText     = q ? escapeHtml(q.question_text) : '';
+        const qPoints   = q ? (Number(q.points) || 1) : 1;
+        const qExpl     = q ? escapeHtml(q.explanation || '') : '';
+
+        let optionsHtml = '';
+        if (q && q.options && q.options.length) {
+            q.options.forEach((opt, optIdx) => {
+                optionsHtml += `
+                    <div class="option-row" style="margin:8px 0;display:flex;align-items:center;gap:10px;">
+                        <input type="${inputType}" name="correct_${idx}[]" value="${optIdx}" ${opt.is_correct ? 'checked' : ''} title="Правильний варіант">
+                        <input type="text" name="options_${idx}[]" value="${escapeHtml(opt.text)}" placeholder="Варіант ${optIdx+1}" required style="flex:1;">
+                    </div>`;
+            });
+        } else {
+            // Default 4 empty options
+            for (let i = 0; i < 4; i++) {
+                optionsHtml += `
+                    <div class="option-row" style="margin:8px 0;display:flex;align-items:center;gap:10px;">
+                        <input type="radio" name="correct_${idx}[]" value="${i}" ${i===0?'checked':''} title="Правильний варіант">
+                        <input type="text" name="options_${idx}[]" placeholder="Варіант ${i+1}" ${i<2?'required':''} style="flex:1;">
+                    </div>`;
+            }
+        }
+
+        block.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <strong>Питання #${idx+1}</strong>
+                <button type="button" class="btn btn-sm btn-danger btn-outline"
+                        onclick="this.closest('.question-editor-block').remove()">Видалити</button>
+            </div>
+            <div class="form-group" style="margin-top:10px;">
+                <label>Текст питання *:</label>
+                <input type="text" name="question_text[]" value="${qText}" required placeholder="Введіть формулювання питання...">
+            </div>
+            <div class="dashboard-grid">
+                <div class="form-group">
+                    <label>Тип питання:</label>
+                    <select name="question_type[]" class="question-type-select">
+                        <option value="single"   ${qType==='single'   ?'selected':''}>Один правильний варіант</option>
+                        <option value="multiple" ${qType==='multiple' ?'selected':''}>Кілька правильних варіантів</option>
+                        <option value="text"     ${qType==='text'     ?'selected':''}>Вільна відповідь (текстова)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Бали:</label>
+                    <input type="number" name="question_points[]" value="${qPoints}" min="1">
+                </div>
+            </div>
+            <div class="options-container" ${qType==='text'?'style="display:none;"':''}>
+                <label>Варіанти відповідей (відмітьте правильний):</label>
+                ${optionsHtml}
+            </div>
+            <div class="form-group" style="margin-top:10px;">
+                <label>Пояснення до запитання (для учнів після завершення):</label>
+                <input type="text" name="question_explanation[]" value="${qExpl}" placeholder="Чому ця відповідь правильна...">
+            </div>`;
+
+        // Hide/show options when type changes
+        block.querySelector('select[name="question_type[]"]').addEventListener('change', function() {
+            const oc = block.querySelector('.options-container');
+            oc.style.display = this.value === 'text' ? 'none' : '';
+        });
+
+        return block;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ADD QUESTION MANUALLY
+    // ══════════════════════════════════════════════════════════════════════════
+    document.getElementById('add-question-btn').addEventListener('click', () => {
+        const container = document.getElementById('questions-container');
+        const idx = questionCounter++;
+        const block = buildQuestionBlock(idx, null);
+        container.appendChild(block);
+    });
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // FORM SUBMIT — re-index question names
+    // ══════════════════════════════════════════════════════════════════════════
+    document.getElementById('create-test-form').addEventListener('submit', () => {
+        document.querySelectorAll('.question-editor-block').forEach((block, idx) => {
+            block.dataset.index = idx;
+            block.querySelectorAll('input[name^="options_"]').forEach(inp => { inp.name = `options_${idx}[]`; });
+            block.querySelectorAll('input[name^="correct_"]').forEach((inp, optIdx) => {
+                inp.name = `correct_${idx}[]`;
+                inp.value = String(optIdx);
+            });
+        });
+    });
+</script>
+{% endblock %}

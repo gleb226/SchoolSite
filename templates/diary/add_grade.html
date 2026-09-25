@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Виставити оцінку — Електронний журнал{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('book') }} Класний журнал</h1>
+    <p>Оберіть клас, предмет і урок, після цього виставляйте оцінки в клітинках таблиці.</p>
+</div>
+
+{% if success %}<div class="alert alert-success">{{ success }}</div>{% endif %}
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<div class="card">
+    <form method="GET" action="{{ url_for('diary.add_grade') }}" class="journal-toolbar">
+        <div class="form-group">
+            <label for="filter_class_id">Клас:</label>
+            <select name="class_id" id="filter_class_id" required>
+                {% for c in classes %}
+                    <option value="{{ c.id }}" {% if selected_class == c.id %}selected{% endif %}>{{ c.name }} ({{ c.year }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="filter_subject_id">Предмет:</label>
+            <select name="subject_id" id="filter_subject_id" required>
+                {% for subj in subjects %}
+                    <option value="{{ subj.id }}" {% if selected_subject == subj.id %}selected{% endif %}>{{ subj.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="filter_date">Дата:</label>
+            <input type="date" name="date" id="filter_date" value="{{ selected_date }}" required>
+        </div>
+        <button type="submit" class="btn btn-outline">Відкрити журнал</button>
+    </form>
+</div>
+
+<div class="card">
+    <form method="POST" class="standard-form journal-grid-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="action" value="grid">
+        <input type="hidden" name="class_id" value="{{ selected_class or '' }}">
+        <input type="hidden" name="subject_id" value="{{ selected_subject or '' }}">
+        <input type="hidden" name="date" value="{{ selected_date }}">
+
+        <div class="journal-toolbar">
+            <div class="form-group">
+                <label for="lesson_number">Урок за рахунком:</label>
+                <input type="number" name="lesson_number" id="lesson_number" min="1" max="12" placeholder="Наприклад: 3">
+            </div>
+            <div class="form-group">
+                <label for="grade_type">Тип оцінки:</label>
+                <select name="grade_type" id="grade_type" required>
+                    <option value="current">Поточна</option>
+                    <option value="homework">Домашнє завдання</option>
+                    <option value="control">Контрольна / самостійна</option>
+                    <option value="term">Тематична / семестрова</option>
+                    <option value="yearly">Річна</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="lesson_topic">Тема уроку:</label>
+                <input type="text" name="lesson_topic" id="lesson_topic" placeholder="Тема або вид роботи">
+            </div>
+            <div class="form-group">
+                <label for="comment">Спільний коментар:</label>
+                <input type="text" name="comment" id="comment" placeholder="Необов'язково">
+            </div>
+        </div>
+
+        {% if class_students %}
+        <div class="journal-table-wrap">
+            <table class="data-table journal-table">
+                <thead>
+                    <tr>
+                        <th>Учень</th>
+                        <th>Оцінка</th>
+                        <th>Коментар у клітинці</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in class_students %}
+                    <tr>
+                        <td><strong>{{ s.full_name }}</strong><br><small>{{ s.username }}</small></td>
+                        <td><input type="number" name="grade_{{ s.id }}" min="1" max="12" placeholder="1-12"></td>
+                        <td><input type="text" name="comment_{{ s.id }}" placeholder="Індивідуальний коментар"></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <button type="submit" class="btn btn-primary">{{ icons.icon('check') }} Зберегти клітинки журналу</button>
+        {% else %}
+            <p>У цьому класі немає підтверджених учнів.</p>
+        {% endif %}
+    </form>
+</div>
+
+{% if existing_grades %}
+<div class="card">
+    <h3>Оцінки за обраний день</h3>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Учень</th>
+                <th>Урок</th>
+                <th>Оцінка</th>
+                <th>Коментар</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in existing_grades %}
+            <tr>
+                <td>{{ g.student_name }}</td>
+                <td>{{ g.lesson_number or '-' }}{% if g.lesson_topic %}: {{ g.lesson_topic }}{% endif %}</td>
+                <td><span class="grade-badge">{{ g.grade }}</span></td>
+                <td>{{ g.comment or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<script>
+    document.querySelectorAll('#filter_class_id, #filter_subject_id, #filter_date').forEach(el => {
+        el.addEventListener('change', () => el.form.submit());
+    });
+</script>
+{% endblock %}

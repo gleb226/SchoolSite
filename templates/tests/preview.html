@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Перегляд тесту: {{ test.title }}{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('file-check') }} Перегляд тесту (режим вчителя)</h1>
+    <p>
+        <a href="{{ url_for('tests.list_tests') }}">← До списку тестів</a>
+        &nbsp;|&nbsp;
+        <a href="{{ url_for('tests.results', test_id=test.id) }}" class="btn btn-sm btn-outline">Результати учнів</a>
+    </p>
+</div>
+
+<div class="card" style="margin-bottom: 20px; border-left: 5px solid #f59e0b; background: #fffbeb;">
+    <p style="margin:0; color:#92400e; font-weight:600;">
+        ⚠️ Режим перегляду — це тільки для вчителя. Відповіді не зберігаються, античіт вимкнено.
+    </p>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+    <h2 style="margin:0 0 8px 0;">{{ test.title }}</h2>
+    <p style="color:#475569; margin:0 0 12px 0;">{{ test.description }}</p>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; font-size:14px; color:#64748b;">
+        <span>⏱ Час: <strong>{{ test.time_limit_minutes }} хв.</strong></span>
+        <span>📝 Питань: <strong>{{ questions|length }}</strong></span>
+        <span>🔁 Спроб: <strong>{{ test.max_attempts }}</strong></span>
+        <span>Статус: <strong style="color:{% if test.is_active %}#16a34a{% else %}#94a3b8{% endif %};">{% if test.is_active %}Активний{% else %}Прихований{% endif %}</strong></span>
+    </div>
+</div>
+
+{% for q in questions %}
+<div class="card" style="margin-bottom: 16px; border: 1px solid #e2e8f0;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <strong style="color:#1e293b;">Завдання {{ loop.index }} з {{ questions|length }}</strong>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <span style="background:#f1f5f9; color:#475569; padding:2px 10px; border-radius:12px; font-size:13px;">
+                {% if q.question_type == 'single' %}Одна відповідь
+                {% elif q.question_type == 'multiple' %}Кілька відповідей
+                {% else %}Текстова відповідь{% endif %}
+            </span>
+            <span style="background:#e0e7ff; color:#3730a3; padding:2px 10px; border-radius:12px; font-size:13px;">{{ q.points }} б.</span>
+        </div>
+    </div>
+    <p style="font-size:16px; font-weight:500; color:#0f172a; margin:0 0 14px 0;">{{ q.question_text }}</p>
+    {% if q.image_url %}
+    <div style="margin-bottom:14px;">
+        <img src="{{ q.image_url }}" alt="Зображення до питання"
+             style="max-width:100%;max-height:300px;border-radius:8px;border:1px solid #e2e8f0;display:block;">
+    </div>
+    {% endif %}
+
+    {% if q.question_type in ('single', 'multiple') %}
+        <div style="display:flex; flex-direction:column; gap:8px;">
+            {% for opt in q.options %}
+            <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:6px;
+                        border:1px solid {% if opt.is_correct is defined and opt.is_correct %}#86efac{% else %}#e2e8f0{% endif %};
+                        background:{% if opt.is_correct is defined and opt.is_correct %}#f0fdf4{% else %}#f8fafc{% endif %};">
+                <span style="width:20px; height:20px; border-radius:{% if q.question_type == 'multiple' %}4px{% else %}50%{% endif %};
+                             border:2px solid #cbd5e1; display:inline-block; flex-shrink:0;"></span>
+                <span style="font-size:15px; color:#334155;">{{ opt.option_text }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div style="padding:10px 14px; border:1px dashed #cbd5e1; border-radius:6px; color:#64748b; font-style:italic;">
+            Учень вводить відповідь текстом
+        </div>
+    {% endif %}
+
+    {% if q.explanation %}
+    <div style="margin-top:12px; padding:10px 14px; background:#eff6ff; border-left:3px solid #3b82f6; border-radius:4px; font-size:13px; color:#1e40af;">
+        💡 <strong>Пояснення:</strong> {{ q.explanation }}
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+
+<div style="margin-top:20px; text-align:center;">
+    <a href="{{ url_for('tests.list_tests') }}" class="btn btn-outline">← До списку тестів</a>
+    <a href="{{ url_for('tests.results', test_id=test.id) }}" class="btn btn-primary" style="margin-left:10px;">Результати учнів →</a>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.renderMathInElement) {
+        renderMathInElement(document.body, {
+            delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],
+            throwOnError: false
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+{% block title %}Результати тесту — {{ test.title }}{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('book') }} Результати: {{ test.title }}</h1>
+    <p>
+        <a href="{{ url_for('tests.list_tests') }}">← До списку тестів</a>
+        {% if test.is_practice %}<span class="badge-info" style="margin-left:10px;">Тренувальний тест</span>{% endif %}
+    </p>
+</div>
+
+{% if latest_attempt and current_user.role == 'student' %}
+<!-- Score summary card -->
+{% set pct = ((latest_attempt.score / latest_attempt.max_score) * 100)|int if latest_attempt.max_score else 0 %}
+<div class="card" style="margin-bottom:25px; text-align:center; padding:30px;">
+    {% if latest_attempt.is_disqualified %}
+        <div style="font-size:3em;">{{ icons.icon('x', 'icon icon-lg') }}</div>
+        <h2 style="color:#e74c3c;">Дискваліфікація</h2>
+        <p style="color:#777;">Зафіксовано порушення правил тесту ({{ latest_attempt.cheat_attempts }} раз(и))</p>
+    {% else %}
+        <div style="font-size:4em;">
+            Результат
+        </div>
+        <h2 style="margin:10px 0;">
+            <span class="grade-badge {% if pct >= 80 %}high{% elif pct >= 50 %}med{% else %}low{% endif %}" style="font-size:1.4em; padding:10px 22px;">
+                {{ latest_attempt.score }} / {{ latest_attempt.max_score }}
+            </span>
+        </h2>
+        <p style="color:#777; font-size:1.1em;">{{ pct }}% правильних відповідей</p>
+        {% if test.is_practice %}
+        <p style="color:#27ae60; font-weight:600;">Тренувальний тест — результати не впливають на оцінки</p>
+        {% endif %}
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Attempts table -->
+<div class="card" style="margin-bottom:25px;">
+    <h3>{{ 'Моє' if current_user.role == 'student' else 'Всі' }} проходження</h3>
+    {% if attempts %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                {% if current_user.role != 'student' %}<th>Учень</th>{% endif %}
+                <th>Дата початку</th>
+                <th>Завершено</th>
+                <th>Бали</th>
+                <th>Порушень (античіт)</th>
+                <th>Статус</th>
+                {% if current_user.role != 'student' %}<th>Відповіді</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in attempts %}
+            <tr {% if latest_attempt and a.id == latest_attempt.id %}style="background:#eff6ff;"{% endif %}>
+                {% if current_user.role != 'student' %}
+                    <td><strong>{{ a.student_name }}</strong></td>
+                {% endif %}
+                <td>{{ a.started_at }}</td>
+                <td>{{ a.finished_at or '—' }}</td>
+                <td>
+                    {% if a.score is not none %}
+                        <strong class="grade-badge {% if a.max_score and (a.score / a.max_score) >= 0.8 %}high{% elif a.max_score and (a.score / a.max_score) >= 0.5 %}med{% else %}low{% endif %}">
+                            {{ a.score }} / {{ a.max_score }}
+                        </strong>
+                    {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if a.cheat_attempts > 0 %}
+                        <span class="badge-danger">{{ a.cheat_attempts }} фіксацій</span>
+                    {% else %}
+                        <span class="badge-success">0</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if a.is_disqualified %}
+                        <span class="badge-danger">Дискваліфікація</span>
+                    {% elif a.status == 'finished' %}
+                        <span class="badge-success">Завершено</span>
+                    {% else %}
+                        <span class="badge-warning">В процесі</span>
+                    {% endif %}
+                </td>
+                {% if current_user.role != 'student' %}
+                <td>
+                    <a href="{{ url_for('tests.results', test_id=test.id, attempt_id=a.id) }}"
+                       class="btn btn-sm btn-outline" style="font-size:12px;">
+                        Переглянути відповіді
+                    </a>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>Спроб проходження цього тесту ще не зафіксовано.</p>
+    {% endif %}
+</div>
+
+<!-- Per-question review (for students after completing a test) -->
+{% if questions_review and current_user.role == 'student' and latest_attempt and latest_attempt.status == 'finished' %}
+
+{% if test.is_practice %}
+{# ─── ТРЕНУВАЛЬНИЙ ТЕСТ: показуємо повний розбір з правильними відповідями та поясненнями ─── #}
+<div class="card">
+    <h3>{{ icons.icon('file-check') }} Детальний розбір відповідей</h3>
+    <p style="color:#777; margin-bottom:20px;">Перегляньте кожне питання, правильні відповіді та пояснення.</p>
+
+    {% for q in questions_review %}
+    {% set sa = q.student_answer %}
+
+    {% if q.question_type == 'text' %}
+        {# Текстова відповідь — показуємо AI-оцінку #}
+        {% set is_correct = false %}
+        {% set was_answered = sa and sa.text_answer %}
+        {% set ai_score_val = sa.ai_score if sa and sa.ai_score is not none else none %}
+    {% else %}
+        {% set answered_id = sa.selected_option_id if sa else None %}
+        {% set correct_options = q.options | selectattr('is_correct') | list %}
+        {% set correct_id = correct_options[0].id if correct_options else None %}
+        {% set is_correct = (answered_id == correct_id) if answered_id and correct_id else false %}
+        {% set was_answered = answered_id is not none %}
+        {% set ai_score_val = none %}
+    {% endif %}
+
+    <div style="border:1px solid {% if q.question_type == 'text' %}#6366f1{% elif is_correct %}#27ae60{% elif not was_answered %}#95a5a6{% else %}#e74c3c{% endif %};
+                border-radius:10px; padding:20px; margin-bottom:18px;
+                background:{% if q.question_type == 'text' %}#f5f3ff{% elif is_correct %}#f0fff4{% elif not was_answered %}#f8f9fa{% else %}#fff5f5{% endif %};">
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <strong style="font-size:1.05em;">{{ loop.index }}. {{ q.question_text }}</strong>
+                <span style="font-weight:700; padding:4px 12px; border-radius:20px; font-size:0.9em; background:#6366f1; color:white;">
+                    Відкрита відповідь
+                    {% if ai_score_val is not none %} | AI: {{ ai_score_val }}/{{ q.points }}{% endif %}
+                </span>
+            {% else %}
+                <span style="font-weight:700; padding:4px 12px; border-radius:20px; font-size:0.9em;
+                             background:{% if is_correct %}#27ae60{% elif not was_answered %}#95a5a6{% else %}#e74c3c{% endif %};
+                             color:white;">
+                    {% if is_correct %}✓ Правильно{% elif not was_answered %}— Пропущено{% else %}✗ Неправильно{% endif %}
+                </span>
+            {% endif %}
+        </div>
+
+        {% if q.image_url %}
+        <div style="margin-bottom:12px;">
+            <img src="{{ q.image_url }}" alt="Зображення до питання"
+                 style="max-width:100%;max-height:260px;border-radius:8px;border:1px solid #e2e8f0;display:block;">
+        </div>
+        {% endif %}
+
+        {% if q.question_type == 'text' %}
+            <div style="background:#ede9fe; border-radius:6px; padding:10px 14px; margin-bottom:10px;">
+                <div style="font-size:12px; color:#7c3aed; margin-bottom:4px;">Ваша відповідь:</div>
+                <div style="font-size:15px; color:#1e1b4b;">{{ sa.text_answer if sa and sa.text_answer else '— не відповіли —' }}</div>
+            </div>
+            {% if ai_score_val is not none %}
+            <div style="background:#e0e7ff; border-left:3px solid #6366f1; border-radius:4px; padding:7px 12px; margin-bottom:10px; font-size:13px;">
+                🤖 <strong>AI-оцінка:</strong> {{ ai_score_val }} / {{ q.points }} б.
+                {% if sa.ai_comment %} — {{ sa.ai_comment }}{% endif %}
+            </div>
+            {% else %}
+            <div style="background:#fef9c3; border-left:3px solid #fbbf24; border-radius:4px; padding:7px 12px; margin-bottom:10px; font-size:13px; color:#78350f;">
+                ⏳ AI ще не перевірив цю відповідь. Результат буде доступний після перевірки вчителем.
+            </div>
+            {% endif %}
+        {% else %}
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                {% set answered_id = sa.selected_option_id if sa else None %}
+                {% for opt in q.options %}
+                {% set is_this_correct = opt.is_correct %}
+                {% set was_selected = (opt.id == answered_id) %}
+                <div style="padding:10px 14px; border-radius:8px; border:2px solid
+                    {% if is_this_correct %}#27ae60
+                    {% elif was_selected and not is_this_correct %}#e74c3c
+                    {% else %}#dee2e6{% endif %};
+                    background:
+                    {% if is_this_correct %}#d4edda
+                    {% elif was_selected and not is_this_correct %}#f8d7da
+                    {% else %}white{% endif %};
+                    font-weight: {% if is_this_correct or was_selected %}600{% else %}400{% endif %};">
+                    {% if is_this_correct %}✓ {% elif was_selected %}✗ {% else %}○ {% endif %}
+                    {{ opt.option_text }}
+                    {% if is_this_correct %}<span style="color:#27ae60; font-size:0.85em;">(правильна відповідь)</span>{% endif %}
+                    {% if was_selected and not is_this_correct %}<span style="color:#e74c3c; font-size:0.85em;">(ваша відповідь)</span>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% if q.explanation %}
+        <div style="margin-top:14px; padding:12px 16px; background:#e8f5e9; border-left:4px solid #27ae60; border-radius:6px;">
+            <strong style="color:#27ae60;">💡 Пояснення:</strong>
+            <p style="margin:6px 0 0; color:#2d5a35;">{{ q.explanation }}</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<div style="text-align:center; margin-top:25px; padding-bottom:30px;">
+    <a href="{{ url_for('tests.list_tests') }}" class="btn btn-primary" style="margin-right:10px;">
+        Спробувати ще раз
+    </a>
+    <a href="{{ url_for('tests.list_tests') }}" class="btn btn-secondary">
+        ← До тренувань
+    </a>
+</div>
+
+{% else %}
+{# ─── КОНТРОЛЬНИЙ ТЕСТ (не тренувальний): показуємо лише короткий підсумок БЕЗ правильних відповідей ─── #}
+<div class="card" style="margin-bottom:25px;">
+    <h3>{{ icons.icon('file-check') }} Ваші відповіді прийняті</h3>
+    <p style="color:#64748b; font-size:15px;">
+        Тест перевіряється. Детальні результати та правильні відповіді будуть доступні після того, як вчитель
+        опрацює роботи всього класу.
+    </p>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:14px;">
+        {% for q in questions_review %}
+        {% set sa = q.student_answer %}
+        <div style="padding:10px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:#374151;">
+                <strong>{{ loop.index }}.</strong> {{ q.question_text[:80] }}{% if q.question_text|length > 80 %}…{% endif %}
+            </span>
+            {% if q.question_type == 'text' %}
+                <span style="font-size:13px; padding:3px 10px; background:#e0e7ff; color:#3730a3; border-radius:12px;">
+                    {% if sa and sa.text_answer %}Відповідь надана{% else %}Не відповіли{% endif %}
+                </span>
+            {% else %}
+                <span style="font-size:13px; padding:3px 10px; border-radius:12px;
+                    background:{% if sa and sa.selected_option_id %}#dcfce7{% else %}#fef9c3{% endif %};
+                    color:{% if sa and sa.selected_option_id %}#166534{% else %}#78350f{% endif %};">
+                    {% if sa and sa.selected_option_id %}✓ Відповідь надана{% else %}— Пропущено{% endif %}
+                </span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    <p style="margin-top:16px; font-size:13px; color:#94a3b8;">
+        🔒 Правильні відповіді на контрольні тести не показуються учням. Якщо хочете тренуватися — спробуйте тренувальний тест за цією темою.
+    </p>
+</div>
+{% endif %}
+
+{% elif questions_review and current_user.role != 'student' %}
+<!-- Teacher/admin view: full question review with AI grading for text answers -->
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+        <h3 style="margin:0;">{{ icons.icon('file-check') }} Розбір відповідей учня</h3>
+        {% if latest_attempt %}
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <span style="font-size:14px; color:#64748b; align-self:center;">
+                {{ latest_attempt.student_name or 'Учень' }} |
+                Бал: <strong id="total-score-display">{{ latest_attempt.score or 0 }} / {{ latest_attempt.max_score or 0 }}</strong>
+            </span>
+            <button type="button" id="btn-ai-grade" class="btn btn-primary btn-sm"
+                    style="background:#6366f1;"
+                    onclick="runAiGrading({{ latest_attempt.id }})">
+                ✨ AI перевірити текстові відповіді
+            </button>
+        </div>
+        {% endif %}
+    </div>
+    <div id="ai-grade-status" style="margin-bottom:12px; font-size:13px; color:#6366f1;"></div>
+
+    {% for q in questions_review %}
+    {% set sa = q.student_answer %}
+    <div style="border:1px solid #e2e8f0; border-radius:8px; padding:16px; margin-bottom:14px;"
+         id="question-block-{{ q.id }}">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+            <strong>{{ loop.index }}. {{ q.question_text }}</strong>
+            <span style="background:#f1f5f9; color:#475569; padding:2px 10px; border-radius:12px; font-size:13px;">
+                {{ q.points }} б. | {{ q.question_type }}
+            </span>
+        </div>
+        {% if q.image_url %}
+        <div style="margin-bottom:12px;">
+            <img src="{{ q.image_url }}" alt="Зображення до питання"
+                 style="max-width:100%;max-height:260px;border-radius:8px;border:1px solid #e2e8f0;display:block;">
+        </div>
+        {% endif %}
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px 14px; margin-bottom:10px;">
+                <div style="font-size:12px; color:#64748b; margin-bottom:4px;">Відповідь учня:</div>
+                <div style="font-size:15px; color:#0f172a;">{{ sa.text_answer if sa and sa.text_answer else '— не відповів —' }}</div>
+            </div>
+
+            {% if q.explanation %}
+            <div style="background:#eff6ff; border-left:3px solid #3b82f6; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:13px;">
+                💡 <strong>Еталонна відповідь:</strong> {{ q.explanation }}
+            </div>
+            {% endif %}
+
+            <!-- AI + Teacher score row -->
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;" id="score-row-{{ sa.id if sa else 'none' }}">
+                <div style="font-size:13px; color:#64748b;">
+                    AI оцінка: <span id="ai-score-{{ sa.id if sa else 'none' }}" style="font-weight:600; color:#6366f1;">
+                        {% if sa and sa.ai_score is not none %}{{ sa.ai_score }}{% else %}—{% endif %}
+                    </span> / {{ q.points }}
+                    {% if sa and sa.ai_comment %}
+                    <span style="margin-left:6px; color:#94a3b8; font-size:12px;" id="ai-comment-{{ sa.id if sa else 'none' }}">
+                        ({{ sa.ai_comment }})
+                    </span>
+                    {% endif %}
+                </div>
+                {% if sa and sa.text_answer %}
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <label style="font-size:13px; color:#374151; font-weight:500;">Оцінка вчителя:</label>
+                    <input type="number" id="teacher-score-{{ sa.id }}"
+                           value="{{ sa.teacher_score if sa.teacher_score is not none else (sa.ai_score if sa.ai_score is not none else '') }}"
+                           min="0" max="{{ q.points }}" step="0.5"
+                           style="width:70px; padding:4px 8px; border:1px solid #cbd5e1; border-radius:4px; font-size:14px;">
+                    <span style="font-size:13px; color:#64748b;">/ {{ q.points }}</span>
+                    <button type="button" class="btn btn-sm btn-primary"
+                            style="padding:4px 12px; font-size:13px;"
+                            onclick="saveTeacherScore({{ test.id }}, {{ sa.id }}, {{ q.points }})">
+                        Зберегти
+                    </button>
+                    <span id="save-status-{{ sa.id }}" style="font-size:12px; color:#16a34a;"></span>
+                </div>
+                {% endif %}
+            </div>
+
+        {% else %}
+            <!-- Auto-scored answer -->
+            {% set answered_id = sa.selected_option_id if sa else None %}
+            {% for opt in q.options %}
+            {% set was_selected = (opt.id == answered_id) %}
+            <div style="padding:7px 12px; border-radius:6px; margin:4px 0;
+                        border:1px solid {% if opt.is_correct %}#86efac{% elif was_selected %}#fca5a5{% else %}#e2e8f0{% endif %};
+                        background:{% if opt.is_correct %}#f0fdf4{% elif was_selected %}#fff5f5{% else %}#fafafa{% endif %};
+                        font-weight:{% if opt.is_correct or was_selected %}600{% else %}400{% endif %};">
+                {% if opt.is_correct %}✓{% elif was_selected %}✗{% else %}○{% endif %}
+                {{ opt.option_text }}
+                {% if opt.is_correct %}<span style="color:#16a34a; font-size:12px;"> (правильна)</span>{% endif %}
+                {% if was_selected and not opt.is_correct %}<span style="color:#dc2626; font-size:12px;"> (відповідь учня)</span>{% endif %}
+            </div>
+            {% endfor %}
+        {% endif %}
+
+        {% if q.explanation and q.question_type != 'text' %}
+        <div style="margin-top:10px; padding:8px 12px; background:#e8f5e9; border-radius:5px; font-size:13px; color:#166534;">
+            💡 {{ q.explanation }}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+async function runAiGrading(attemptId) {
+    const btn = document.getElementById('btn-ai-grade');
+    const status = document.getElementById('ai-grade-status');
+    btn.disabled = true;
+    status.innerText = '⏳ AI перевіряє текстові відповіді...';
+    try {
+        const resp = await fetch('/api/test/{{ test.id }}/grade-text', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({attempt_id: attemptId})
+        });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Помилка');
+        data.graded.forEach(g => {
+            const aiEl = document.getElementById('ai-score-' + g.answer_id);
+            if (aiEl) aiEl.innerText = g.ai_score;
+            const commentEl = document.getElementById('ai-comment-' + g.answer_id);
+            if (commentEl) { commentEl.innerText = '(' + g.ai_comment + ')'; commentEl.style.display = ''; }
+            const inp = document.getElementById('teacher-score-' + g.answer_id);
+            if (inp && !inp.value) inp.value = g.ai_score;
+        });
+        status.innerText = '✅ AI перевірив ' + data.graded.length + ' відповідей. Перевірте та скоригуйте оцінки вручну.';
+        status.style.color = '#16a34a';
+    } catch(e) {
+        status.innerText = '❌ ' + e.message;
+        status.style.color = '#dc2626';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function saveTeacherScore(testId, answerId, maxPts) {
+    const inp = document.getElementById('teacher-score-' + answerId);
+    const statusEl = document.getElementById('save-status-' + answerId);
+    const score = parseFloat(inp.value);
+    if (isNaN(score) || score < 0 || score > maxPts) {
+        inp.style.borderColor = '#dc2626';
+        return;
+    }
+    inp.style.borderColor = '#cbd5e1';
+    try {
+        const resp = await fetch('/api/test/' + testId + '/set-score', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({answer_id: answerId, score: score})
+        });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error);
+        statusEl.innerText = '✓ Збережено';
+        const totalEl = document.getElementById('total-score-display');
+        if (totalEl && data.attempt_total !== undefined) {
+            totalEl.innerText = data.attempt_total.toFixed(1) + ' / ' + totalEl.innerText.split('/')[1];
+        }
+        setTimeout(() => { statusEl.innerText = ''; }, 2000);
+    } catch(e) {
+        statusEl.innerText = '✗ ' + e.message;
+        statusEl.style.color = '#dc2626';
+    }
+}
+</script>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.renderMathInElement) {
+        renderMathInElement(document.body, {
+            delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],
+            throwOnError: false
+        });
+    }
+});
+</script>
+{% endblock %}

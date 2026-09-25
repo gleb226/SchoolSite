@@ -1,0 +1,84 @@
+﻿{% extends "base.html" %}
+{% block title %}Головна — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<section class="hero">
+    <h1>Ужгородський ліцей №3</h1>
+    <p class="hero-subtitle">Школа, де знання зустрічаються з майбутнім</p>
+    <div class="hero-actions">
+        <a href="{{ url_for('public.about') }}" class="btn">Про нас</a>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-outline">Вступити до ліцею</a>
+    </div>
+</section>
+
+<section class="stats-bar">
+    <div class="stat-item">
+        <span class="stat-num">{{ stats.students }}</span>
+        <span class="stat-label">Учнів</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-num">{{ stats.teachers }}</span>
+        <span class="stat-label">Вчителів</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-num">{{ stats.classes }}</span>
+        <span class="stat-label">Класів</span>
+    </div>
+    <div class="stat-item">
+        <span class="stat-num">30+</span>
+        <span class="stat-label">Років досвіду</span>
+    </div>
+</section>
+
+<section class="news-section">
+    <h2>Новини ліцею</h2>
+    {% if news %}
+        <div class="news-grid">
+            {% for item in news %}
+            <article class="news-card">
+                <div class="news-date">{{ item.created_at[:10] }}</div>
+                <h3><a href="{{ url_for('public.news_detail', news_id=item.id) }}">{{ item.title }}</a></h3>
+                <p>{{ item.content | striptags | truncate(150) }}</p>
+                <a href="{{ url_for('public.news_detail', news_id=item.id) }}" class="read-more">Читати далі →</a>
+            </article>
+            {% endfor %}
+        </div>
+        <div class="center-link">
+            <a href="{{ url_for('public.news') }}" class="btn">Всі новини</a>
+        </div>
+    {% else %}
+        <p>Новин поки немає.</p>
+    {% endif %}
+</section>
+
+<section class="quick-links">
+    <h2>Швидкий доступ</h2>
+    <div class="links-grid">
+        <a href="{{ url_for('public.schedule') }}" class="quick-card">
+            <span class="quick-icon">{{ icons.icon('calendar', 'icon icon-lg') }}</span>
+            <span>Розклад дзвінків</span>
+        </a>
+        <a href="{{ url_for('public.teachers') }}" class="quick-card">
+            <span class="quick-icon">{{ icons.icon('users', 'icon icon-lg') }}</span>
+            <span>Педагогічний колектив</span>
+        </a>
+        <a href="{{ url_for('public.enrollment') }}" class="quick-card">
+            <span class="quick-icon">{{ icons.icon('file-check', 'icon icon-lg') }}</span>
+            <span>Документи для вступу</span>
+        </a>
+        <a href="{{ url_for('public.contacts') }}" class="quick-card">
+            <span class="quick-icon">{{ icons.icon('mail', 'icon icon-lg') }}</span>
+            <span>Контакти та адреса</span>
+        </a>
+        {% if current_user %}
+        <a href="{{ url_for('dashboard.dashboard') }}" class="quick-card">
+            <span class="quick-icon">{{ icons.icon('user', 'icon icon-lg') }}</span>
+            <span>Особистий кабінет</span>
+        </a>
+        <a href="{{ url_for('voting.list_votings') }}" class="quick-card">
+            <span class="quick-icon">{{ icons.icon('check', 'icon icon-lg') }}</span>
+            <span>Голосування</span>
+        </a>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

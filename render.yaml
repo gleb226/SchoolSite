@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: schoolsite
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 2 --threads 2 --timeout 120 --bind 0.0.0.0:$PORT "wsgi:app"
+    plan: free
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: "0"
+      - key: SECRET_KEY
+        generateValue: true          # Render generates a random secret
+      - key: DATABASE_PATH
+        value: /opt/render/project/src/school.db
+      # ─── Set these manually in Render dashboard ───────────────────────────
+      # - key: GEMINI_API_KEY
+      #   value: YOUR_GEMINI_API_KEY
+      # - key: BOT_TOKEN
+      #   value: YOUR_TELEGRAM_BOT_TOKEN
+      # - key: ADMIN_TELEGRAM_ID
+      #   value: "YOUR_TELEGRAM_ID"
+      # - key: GEMINI_MODEL
+      #   value: gemini-2.0-flash
+      # - key: GEMINI_FALLBACK_MODELS
+      #   value: gemini-1.5-flash,gemini-1.5-flash-8b
+      # ─────────────────────────────────────────────────────────────────────
+    healthCheckPath: /
+    autoDeploy: true

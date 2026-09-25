@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Результати — {{ voting.title }}{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('book') }} Результати: {{ voting.title }}</h1>
+    <p><a href="{{ url_for('voting.list_votings') }}">← До списку голосувань</a></p>
+</div>
+
+<div class="card" style="margin-bottom: 30px;">
+    <h3>Всього віддано голосів: <strong>{{ total }}</strong></h3>
+    <p>{{ voting.description }}</p>
+</div>
+
+<div class="candidates-results" style="max-width: 800px; margin: 0 auto;">
+    {% for c in candidates %}
+    {% set pct = (c.vote_count / total * 100) if total > 0 else 0 %}
+    <div class="card" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+            <div>
+                <strong style="font-size: 18px;">{{ c.name }}</strong>
+                <span class="badge-info">{{ c.class_name }}</span>
+            </div>
+            <div>
+                <strong>{{ c.vote_count }}</strong> голосів ({{ pct|round(1) }}%)
+            </div>
+        </div>
+
+        <div class="progress-bar-container" style="background: #e0e0e0; height: 22px; border-radius: 4px; overflow: hidden;">
+            <div class="progress-fill" style="width: {{ pct }}%; background: #3498db; height: 100%;"></div>
+        </div>
+        <p style="margin-top: 8px; font-size: 14px; color: #666;">{{ c.description }}</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

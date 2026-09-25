@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% block title %}Онлайн-тести — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('file-check') }} Онлайн-тестування</h1>
+    <p>Тематичні контрольні роботи, оцінювання та AI-тренажер для самопідготовки</p>
+</div>
+
+{% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal') %}
+    <div style="margin-bottom: 25px; display: flex; gap: 10px; flex-wrap: wrap;">
+        <a href="{{ url_for('tests.create_test') }}" class="btn btn-primary" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border: none;">
+            {{ icons.icon('sparkles') }} Створити тест з AI
+        </a>
+        <a href="{{ url_for('tests.create_test') }}" class="btn btn-outline">
+            + Створити тест вручну
+        </a>
+    </div>
+{% endif %}
+
+<!-- Секція для учнів: AI-Тренувальні тести за темами -->
+{% if current_user.role == 'student' %}
+<div class="card" style="margin-bottom: 30px; border-left: 5px solid #10b981; background: #f0fdf4;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h3 style="margin: 0; color: #065f46; display: flex; align-items: center; gap: 8px;">
+                {{ icons.icon('sparkles') }} Тренажер знань: Тренувальні тести за темами
+            </h3>
+            <p style="margin: 5px 0 0 0; color: #047857; font-size: 14px;">
+                Оберіть предмет та тему, яку хочете повторити чи закріпити. Система миттєво згенерує практичні завдання з поясненням кожної відповіді!
+            </p>
+        </div>
+        <span class="badge" style="background: #d1fae5; color: #065f46; font-weight: 600;">Самопідготовка</span>
+    </div>
+
+    <div style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="practice-subject">Предмет:</label>
+            <select id="practice-subject">
+                {% for s in subjects %}
+                    <option value="{{ s.name }}" {% if s.name == 'Математика' %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="practice-count">Кількість завдань:</label>
+            <select id="practice-count">
+                <option value="3">3 питання (бліц)</option>
+                <option value="5" selected>5 питань (стандарт)</option>
+                <option value="10">10 питань (поглиблено)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-group" style="margin-top: 15px;">
+        <label for="practice-topic">Тема для повторення (оберіть із популярних або введіть свою):</label>
+        <input type="text" id="practice-topic" placeholder="Наприклад: Квадратні рівняння, Закони Ньютона, тощо...">
+
+        <!-- Швидкі підказки тем за предметом -->
+        <div id="practice-topic-chips" style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+            <!-- JS заповнює чіпси -->
+        </div>
+    </div>
+
+    <div style="display: flex; gap: 12px; align-items: center; margin-top: 15px;">
+        <button type="button" id="btn-start-practice" class="btn btn-primary" style="background: #059669; border: none; font-weight: 600; padding: 10px 20px;">
+            {{ icons.icon('sparkles') }} Згенерувати та розпочати тренування
+        </button>
+        <span id="practice-status" style="font-size: 14px; font-weight: 500;"></span>
+    </div>
+</div>
+
+{% if practice_tests %}
+    <h3 style="margin-top: 25px; margin-bottom: 15px; color: #065f46;">{{ icons.icon('book') }} Мої тренувальні тести</h3>
+    <div class="cards-list" style="margin-bottom: 30px;">
+        {% for pt in practice_tests %}
+        <div class="card" style="margin-bottom: 12px; border: 1px solid #a7f3d0; background: #ffffff;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <h4 style="margin: 0 0 5px 0; color: #065f46;">{{ pt.title }}</h4>
+                    <p style="margin: 0; font-size: 13px; color: #475569;">
+                        Предмет: <strong>{{ pt.subject_name or 'Загальний' }}</strong> |
+                        Питань: ~{{ pt.time_limit_minutes // 2 }} |
+                        {% if pt.best_score is not none %}
+                            Кращий результат: <strong style="color: #059669;">{{ pt.best_score }} б.</strong>
+                        {% else %}
+                            Ще не пройдено
+                        {% endif %}
+                    </p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <a href="{{ url_for('tests.take_test', test_id=pt.id) }}" class="btn btn-sm btn-primary" style="background: #059669;">
+                        {% if pt.attempts_done %}Пройти знову{% else %}Почати{% endif %}
+                    </a>
+                    {% if pt.attempts_done %}
+                        <a href="{{ url_for('tests.results', test_id=pt.id) }}" class="btn btn-sm btn-outline">
+                            Пояснення
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endif %}
+
+<h3 style="margin-top: 20px; margin-bottom: 15px;">{{ icons.icon('file-check') }} Офіційні тести та контрольні роботи ліцею</h3>
+
+{% if tests %}
+    <div class="cards-list">
+        {% for t in tests %}
+        <div class="card test-card" style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <h3>
+                        {{ t.title }}
+                        {% if t.variant_count and t.variant_count > 1 %}
+                            <span style="font-size:12px; font-weight:600; padding:2px 8px; background:#eef2ff; color:#4338ca; border-radius:12px; border:1px solid #c7d2fe; margin-left:8px; vertical-align:middle;">
+                                🎲 {{ t.variant_count }} варіанти
+                            </span>
+                        {% endif %}
+                    </h3>
+                    <p>{{ t.description }}</p>
+                    <p>
+                        <span class="badge-info">Предмет: {{ t.subject_name or 'Загальний' }}</span>
+                        <span class="badge-info">Клас: {{ t.class_name or 'Всі' }}</span>
+                        <span>⏱ {{ t.time_limit_minutes }} хв.</span>
+                        <span>Спроб дозволено: {{ t.max_attempts }}</span>
+                    </p>
+                </div>
+                <div>
+                    {% if current_user.role == 'student' %}
+                        {% if t.attempts_done and t.attempts_done >= t.max_attempts %}
+                            <span class="badge-warning" style="margin-right: 8px;">Спроби вичерпано</span>
+                            <a href="{{ url_for('tests.results', test_id=t.id) }}" class="btn btn-sm btn-outline">Результати</a>
+                        {% else %}
+                            <a href="{{ url_for('tests.take_test', test_id=t.id) }}" class="btn btn-primary">Почати тест</a>
+                        {% endif %}
+                    {% else %}
+                        <!-- Кнопка запуску сесії на уроці -->
+                        <form method="POST" action="{{ url_for('session.create_session', test_id=t.id) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-sm btn-primary"
+                                    style="background:linear-gradient(135deg,#059669,#10b981); border:none;"
+                                    title="Відкрити сесію — учні приєднуються за QR-кодом або кодом">
+                                📡 Сесія на уроці
+                            </button>
+                        </form>
+                        <a href="{{ url_for('tests.preview_test', test_id=t.id) }}" class="btn btn-sm btn-outline">Переглянути</a>
+                        <a href="{{ url_for('tests.results', test_id=t.id) }}" class="btn btn-sm btn-outline">Результати</a>
+                        <!-- Кнопка видалення тесту -->
+                        <form method="POST" action="{{ url_for('tests.delete_test', test_id=t.id) }}" style="display:inline;"
+                              onsubmit="return confirm('Видалити тест «{{ t.title }}»?\nЦю дію неможливо скасувати — всі результати та питання будуть видалені назавжди.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-sm"
+                                    style="background:#dc2626; color:#fff; border:none; border-radius:6px; padding:4px 10px; cursor:pointer;"
+                                    title="Видалити тест назавжди">
+                                🗑 Видалити
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="card">
+        <p>На даний момент призначених офіційних онлайн-тестів немає.</p>
+    </div>
+{% endif %}
+
+<script>
+    const curriculumTopics = {{ curriculum_topics | tojson }};
+    const completedPracticeTopics = {{ completed_topics | default([]) | tojson }};
+    const canPracticeAnyTopic = false;
+
+    function updatePracticeChips() {
+        const selSubject = document.getElementById('practice-subject');
+        if (!selSubject) return;
+        const container = document.getElementById('practice-topic-chips');
+        container.innerHTML = '';
+        const topics = completedPracticeTopics
+            .filter(t => t.subject_name === selSubject.value)
+            .map(t => t.topic);
+        topics.forEach(t => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline';
+            btn.style.cssText = 'font-size: 11px; padding: 2px 8px; border-radius: 12px; border-color: #a7f3d0; color: #065f46;';
+            btn.innerText = t;
+            btn.onclick = () => {
+                document.getElementById('practice-topic').value = t;
+            };
+            container.appendChild(btn);
+        });
+        const startPracticeBtn = document.getElementById('btn-start-practice');
+        const status = document.getElementById('practice-status');
+        if (startPracticeBtn) {
+            startPracticeBtn.disabled = topics.length === 0 && !canPracticeAnyTopic;
+        }
+        if (status) {
+            status.innerText = topics.length === 0 && !canPracticeAnyTopic ? 'Спочатку пройдіть офіційний тест із теми.' : '';
+            status.style.color = topics.length === 0 && !canPracticeAnyTopic ? '#dc2626' : '';
+        }
+    }
+
+    const practiceSubj = document.getElementById('practice-subject');
+    if (practiceSubj) {
+        practiceSubj.addEventListener('change', updatePracticeChips);
+        updatePracticeChips();
+    }
+
+    const startPracticeBtn = document.getElementById('btn-start-practice');
+    if (startPracticeBtn) {
+        startPracticeBtn.addEventListener('click', async () => {
+            const subject = document.getElementById('practice-subject').value;
+            const topic = document.getElementById('practice-topic').value.trim();
+            const count = document.getElementById('practice-count').value;
+            const status = document.getElementById('practice-status');
+
+            if (!topic) {
+                alert('Будь ласка, введіть або оберіть тему для тренування!');
+                document.getElementById('practice-topic').focus();
+                return;
+            }
+
+            status.innerText = '⏳ Генерація тренувального тесту... Зачекайте.';
+            status.style.color = '#059669';
+            startPracticeBtn.disabled = true;
+
+            try {
+                const resp = await fetch('/tests/practice/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subject, topic, question_count: count })
+                });
+                const res = await resp.json();
+                if (!res.success) {
+                    throw new Error(res.error || 'Помилка генерації тесту');
+                }
+
+                status.innerText = 'Тест готовий. Переходимо до виконання...';
+                setTimeout(() => {
+                    window.location.href = `/tests/take/${res.test_id}`;
+                }, 500);
+            } catch (err) {
+                console.error(err);
+                status.innerText = err.message;
+                status.style.color = '#dc2626';
+                startPracticeBtn.disabled = false;
+            }
+        });
+    }
+</script>
+{% endblock %}

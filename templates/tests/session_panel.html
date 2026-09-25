@@ -1,0 +1,562 @@
+{% extends "base.html" %}
+{% block title %}Сесія тесту — {{ test.title }}{% endblock %}
+{% block content %}
+
+<!-- ── Заголовок ─────────────────────────────────────────────────────────── -->
+<div class="dashboard-header">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:14px;">
+        <div>
+            <h1 style="display:flex; align-items:center; gap:10px;">
+                📡 Сесія тесту
+                <span id="status-badge" class="session-status-badge
+                    {% if session.status == 'waiting' %}status-waiting
+                    {% elif session.status == 'active' %}status-active
+                    {% else %}status-closed{% endif %}">
+                    {% if session.status == 'waiting' %}⏳ Очікування
+                    {% elif session.status == 'active' %}▶️ Активна
+                    {% else %}✅ Закрита{% endif %}
+                </span>
+            </h1>
+            <p style="color:#64748b; font-size:14px; margin-top:4px;">
+                {{ test.title }}
+                {% if test.subject_name %} · {{ test.subject_name }}{% endif %}
+                {% if test.class_name %} · {{ test.class_name }}{% endif %}
+            </p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            {% if session.status == 'waiting' %}
+            <form method="POST" action="{{ url_for('session.start_session', session_id=session.id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-primary" style="background:#059669;">
+                    ▶️ Запустити тест для всіх
+                </button>
+            </form>
+            {% endif %}
+            {% if session.status != 'closed' %}
+            <form method="POST" action="{{ url_for('session.close_session', session_id=session.id) }}" style="display:inline;"
+                  onsubmit="return confirm('Закрити сесію? Учні, які ще проходять тест, зможуть завершити його.')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-outline btn-danger">
+                    ✕ Закрити сесію
+                </button>
+            </form>
+            <button id="global-ac-btn" type="button" class="btn btn-outline btn-sm"
+                    onclick="toggleGlobalAnticheat(true)"
+                    style="font-size:13px;">
+                🔒 Вимкнути античіт для всіх
+            </button>
+            {% endif %}
+            <a href="{{ url_for('tests.results', test_id=test.id) }}" class="btn btn-outline">
+                📊 Результати
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- ── Основна сітка ─────────────────────────────────────────────────────── -->
+<div class="session-grid">
+
+    <!-- ── Ліва колонка: QR + код ──────────────────────────────────────── -->
+    <div>
+
+        <!-- QR-картка -->
+        <div class="card session-qr-card">
+            <h3 style="margin:0 0 4px; color:#312e81; font-size:16px; text-align:center;">
+                📱 Учні — скануйте QR
+            </h3>
+            <p style="font-size:12px; color:#6366f1; text-align:center; margin:0 0 14px;">
+                або введіть код вручну
+            </p>
+
+            <!-- QR-зображення -->
+            <div style="text-align:center; margin-bottom:16px;">
+                <img src="{{ qr_img_url }}" alt="QR-код для приєднання"
+                     width="220" height="220"
+                     style="border:6px solid #fff; border-radius:12px; box-shadow:0 4px 12px rgba(99,102,241,.2);"
+                     onerror="this.style.display='none'; document.getElementById('qr-fallback').style.display='block';">
+                <div id="qr-fallback" style="display:none; padding:20px; background:#f8fafc; border-radius:8px; color:#64748b; font-size:13px;">
+                    QR недоступний — використайте посилання нижче
+                </div>
+            </div>
+
+            <!-- Великий join-код -->
+            <div class="join-code-display">
+                <div class="join-code-label">Код приєднання</div>
+                <div class="join-code-value" id="join-code-text">{{ session.join_code }}</div>
+                <button type="button" class="btn btn-sm btn-outline" style="margin-top:6px;"
+                        onclick="copyCode('{{ session.join_code }}')">
+                    📋 Скопіювати код
+                </button>
+            </div>
+        </div>
+
+        <!-- Посилання -->
+        <div class="card" style="margin-top:0;">
+            <h4 style="margin:0 0 8px; font-size:14px; color:#374151;">🔗 Пряме посилання</h4>
+            <div style="display:flex; gap:6px; align-items:center;">
+                <input type="text" id="join-link-input"
+                       value="{{ join_url }}"
+                       readonly
+                       style="flex:1; font-size:12px; padding:7px 10px;
+                              border:1px solid #cbd5e1; border-radius:6px;
+                              background:#f8fafc; color:#374151; overflow:hidden;
+                              text-overflow:ellipsis; white-space:nowrap;">
+                <button type="button" class="btn btn-sm btn-outline" onclick="copyLink()">
+                    📋
+                </button>
+            </div>
+            <p style="font-size:11px; color:#94a3b8; margin-top:6px; line-height:1.4;">
+                Надішліть учням в Telegram чи вставте у чат — вони відкриють і відразу приєднаються.
+            </p>
+        </div>
+
+        <!-- Статистика -->
+        <div class="card" style="margin-top:0; background:linear-gradient(135deg,#eff6ff,#f0fdf4);">
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; text-align:center;">
+                <div>
+                    <div style="font-size:28px; font-weight:800; color:#6366f1;" id="count-joined">
+                        {{ participants | length }}
+                    </div>
+                    <div style="font-size:11px; color:#64748b;">Приєдналось</div>
+                </div>
+                <div>
+                    <div style="font-size:28px; font-weight:800; color:#059669;" id="count-finished">
+                        {{ participants | selectattr('attempt_status', 'equalto', 'finished') | list | length }}
+                    </div>
+                    <div style="font-size:11px; color:#64748b;">Завершили</div>
+                </div>
+                <div>
+                    <div style="font-size:28px; font-weight:800; color:#f59e0b;" id="count-progress">
+                        {{ participants | selectattr('attempt_status', 'equalto', 'in_progress') | list | length }}
+                    </div>
+                    <div style="font-size:11px; color:#64748b;">Проходять</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── Права колонка: список учнів ──────────────────────────────────── -->
+    <div>
+        <div class="card" style="height:100%; min-height:400px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+                <h3 style="margin:0; font-size:16px;">
+                    👥 Учні в сесії
+                    <span id="participants-count-badge"
+                          style="background:#e0e7ff; color:#4338ca; font-size:12px; font-weight:700;
+                                 padding:2px 8px; border-radius:10px; margin-left:6px;">
+                        {{ participants | length }}
+                    </span>
+                </h3>
+                <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:#94a3b8;">
+                    <span class="live-dot"></span> Оновлюється автоматично
+                </div>
+            </div>
+
+            <div id="participants-list">
+                {% if participants %}
+                    {% for p in participants %}
+                    <div class="participant-row" data-id="{{ p.student_id }}">
+                        <div class="participant-avatar">
+                            {{ p.full_name[0] | upper }}
+                        </div>
+                        <div class="participant-info">
+                            <div class="participant-name">{{ p.full_name }}</div>
+                            <div class="participant-time">
+                                Приєднався {{ p.joined_at | replace('T',' ') | truncate(16, True, '') }}
+                            </div>
+                        </div>
+                        <div class="participant-status">
+                            {% if p.attempt_status == 'finished' %}
+                                <span class="p-badge p-badge-done">
+                                    ✓ {{ p.score | int }}/{{ p.max_score | int }}
+                                </span>
+                            {% elif p.attempt_status == 'in_progress' %}
+                                <span class="p-badge p-badge-progress">⏱ Проходить</span>
+                            {% else %}
+                                <span class="p-badge p-badge-waiting">⏳ Очікує</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div id="empty-state" style="text-align:center; padding:40px 20px; color:#94a3b8;">
+                        <div style="font-size:48px; margin-bottom:12px;">📱</div>
+                        <p style="font-size:15px; font-weight:500; color:#64748b;">Учні ще не приєдналися</p>
+                        <p style="font-size:13px;">Попросіть їх відсканувати QR-код або ввести код <strong>{{ session.join_code }}</strong></p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ── Toast-повідомлення ─────────────────────────────────────────────────── -->
+<div id="copy-toast" style="
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(60px);
+    background:#0f172a; color:#fff; padding:10px 20px; border-radius:30px;
+    font-size:14px; font-weight:500; z-index:9999;
+    transition:transform .25s ease, opacity .25s ease; opacity:0; pointer-events:none;">
+    ✓ Скопійовано!
+</div>
+
+<style>
+/* ── Сесія: специфічні стилі ─────────────────────────────────────── */
+.session-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+.session-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 700;
+    vertical-align: middle;
+}
+.status-waiting { background: #fef3c7; color: #b45309; }
+.status-active  { background: #dcfce7; color: #15803d; animation: pulse-green 2s infinite; }
+.status-closed  { background: #f1f5f9; color: #64748b; }
+
+@keyframes pulse-green {
+    0%,100% { box-shadow: 0 0 0 0 rgba(21,128,61,.3); }
+    50%      { box-shadow: 0 0 0 6px rgba(21,128,61,0); }
+}
+
+.session-qr-card {
+    background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%);
+    border: 1px solid #c7d2fe;
+    text-align: center;
+}
+
+.join-code-display {
+    background: #312e81;
+    border-radius: 10px;
+    padding: 16px 12px;
+    margin-top: 4px;
+}
+.join-code-label { font-size: 11px; color: #a5b4fc; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+.join-code-value {
+    font-size: 38px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: .18em;
+    font-family: 'Courier New', monospace;
+    text-shadow: 0 2px 4px rgba(0,0,0,.3);
+    line-height: 1;
+}
+
+/* Список учасників */
+.participant-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+    animation: slideIn .3s ease;
+}
+.participant-row:last-child { border-bottom: none; }
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+.participant-avatar {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px;
+    flex-shrink: 0;
+}
+
+.participant-info { flex: 1; min-width: 0; }
+.participant-name { font-weight: 600; font-size: 14px; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.participant-time { font-size: 11px; color: #94a3b8; }
+
+.participant-status { flex-shrink: 0; }
+.p-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+}
+.p-badge-done     { background: #dcfce7; color: #15803d; }
+.p-badge-progress { background: #fef3c7; color: #b45309; }
+.p-badge-waiting  { background: #f1f5f9; color: #64748b; }
+
+/* Live dot */
+.live-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    animation: livePulse 1.5s infinite;
+}
+@keyframes livePulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: .3; }
+}
+
+@media (max-width: 900px) {
+    .session-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+    .join-code-value { font-size: 28px; letter-spacing: .12em; }
+}
+</style>
+
+<script>
+const SESSION_ID = {{ session.id }};
+const SESSION_STATUS = '{{ session.status }}';
+
+// ── Polling ────────────────────────────────────────────────────────────────
+async function pollParticipants() {
+    try {
+        const resp = await fetch('/session/api/status/' + SESSION_ID);
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        // Оновлюємо бейдж статусу
+        const badge = document.getElementById('status-badge');
+        if (badge) {
+            if (data.status === 'active') {
+                badge.className = 'session-status-badge status-active';
+                badge.innerText = '▶️ Активна';
+            } else if (data.status === 'closed') {
+                badge.className = 'session-status-badge status-closed';
+                badge.innerText = '✅ Закрита';
+            }
+        }
+
+        // Оновлюємо лічильники
+        const joined   = data.participants.length;
+        const finished = data.participants.filter(p => p.attempt_status === 'finished').length;
+        const progress = data.participants.filter(p => p.attempt_status === 'in_progress').length;
+
+        setCounter('count-joined',   joined);
+        setCounter('count-finished', finished);
+        setCounter('count-progress', progress);
+        setCounter('participants-count-badge', joined);
+
+        // Оновлюємо список
+        renderParticipants(data.participants);
+
+    } catch(e) {
+        // мережева помилка — ігноруємо, продовжуємо polling
+    }
+}
+
+function setCounter(id, val) {
+    const el = document.getElementById(id);
+    if (el && el.innerText !== String(val)) el.innerText = val;
+}
+
+function renderParticipants(list) {
+    const container = document.getElementById('participants-list');
+    if (!container) return;
+
+    if (!list.length) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:40px 20px; color:#94a3b8;">
+                <div style="font-size:48px; margin-bottom:12px;">📱</div>
+                <p style="font-size:15px; font-weight:500; color:#64748b;">Учні ще не приєдналися</p>
+                <p style="font-size:13px;">Попросіть їх відсканувати QR-код або ввести код</p>
+            </div>`;
+        return;
+    }
+
+    const html = list.map(p => {
+        let statusHtml;
+        if (p.attempt_status === 'finished') {
+            const score = p.score !== null ? Math.round(p.score) : '?';
+            const max   = p.max_score !== null ? Math.round(p.max_score) : '?';
+            statusHtml = `<span class="p-badge p-badge-done">✓ ${score}/${max}</span>`;
+        } else if (p.attempt_status === 'in_progress') {
+            statusHtml = `<span class="p-badge p-badge-progress">⏱ Проходить</span>`;
+        } else if (p.attempt_status === 'disqualified') {
+            statusHtml = `<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;">
+                <span class="p-badge" style="background:#fee2e2;color:#b91c1c;">🚫 Вилучено</span>
+                <button onclick="restoreStudent(${p.student_id})"
+                        style="font-size:11px;padding:2px 7px;background:#dcfce7;color:#15803d;border:1px solid #86efac;border-radius:4px;cursor:pointer;">
+                    ↩ Повернути
+                </button>
+            </div>`;
+        } else {
+            statusHtml = `<span class="p-badge p-badge-waiting">⏳ Очікує</span>`;
+        }
+
+        const initials = (p.full_name || '?').trim()[0].toUpperCase();
+        const exitInfo = p.exit_count > 0
+            ? `<span style="color:#f59e0b;margin-left:5px;font-size:11px;">⚡ ${p.exit_count} вих. / ${(p.exit_duration_seconds||0).toFixed(0)}с</span>`
+            : '';
+        const acBtn = `<button onclick="toggleAnticheat(${p.student_id}, ${p.anticheat_disabled ? 'false' : 'true'})"
+                title="${p.anticheat_disabled ? 'Античіт вимкнено — натисніть увімкнути' : 'Античіт увімкнено — натисніть вимкнути'}"
+                style="font-size:11px;padding:2px 6px;background:${p.anticheat_disabled ? '#fef3c7' : '#f0fdf4'};border:1px solid ${p.anticheat_disabled ? '#fde68a' : '#86efac'};border-radius:4px;cursor:pointer;margin-top:3px;">
+            ${p.anticheat_disabled ? '🔓 AC вимкнено' : '🔒 AC вкл'}
+        </button>`;
+
+        // Variant badge + change button (shown only if variant assigned)
+        const variantBadge = p.variant_number
+            ? `<span style="font-size:11px;padding:2px 7px;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:10px;font-weight:600;">В${p.variant_number}</span>
+               <button onclick="changeVariant(${p.student_id}, ${p.variant_number})"
+                       style="font-size:10px;padding:1px 5px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px;cursor:pointer;color:#64748b;"
+                       title="Змінити варіант">✏️</button>`
+            : '';
+
+        return `<div class="participant-row" data-id="${p.student_id}">
+            <div class="participant-avatar">${initials}</div>
+            <div class="participant-info">
+                <div class="participant-name">${escHtml(p.full_name)}</div>
+                <div class="participant-time">${(p.joined_at || '').replace('T',' ').substring(0,16)}${exitInfo}</div>
+            </div>
+            <div class="participant-status" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+                <div style="display:flex;align-items:center;gap:4px;">${variantBadge}</div>
+                ${statusHtml}
+                ${acBtn}
+            </div>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+function escHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ── Змінити варіант учня ─────────────────────────────────────────────────
+async function changeVariant(studentId, currentVariant) {
+    const newVar = prompt(`Поточний варіант: ${currentVariant}\nВведіть новий номер варіанту:`, currentVariant);
+    if (!newVar || isNaN(parseInt(newVar))) return;
+    const num = parseInt(newVar);
+    if (num < 1) return;
+    try {
+        const resp = await fetch(`/session/api/${SESSION_ID}/set-variant`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({student_id: studentId, variant_number: num})
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showToast(`✓ Варіант ${num} призначено`);
+            pollParticipants();
+        } else {
+            alert('Помилка: ' + (data.error || 'невідома'));
+        }
+    } catch(e) { alert('Помилка мережі'); }
+}
+
+// ── Повернути учня ────────────────────────────────────────────────────────
+async function restoreStudent(studentId) {
+    if (!confirm('Повернути учня до тесту? Він продовжить з того самого місця.')) return;
+    try {
+        const resp = await fetch(`/api/session/${SESSION_ID}/restore-student`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({student_id: studentId})
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showToast('✓ Учня повернуто');
+            pollParticipants();
+        } else {
+            alert('Помилка: ' + (data.error || 'невідома'));
+        }
+    } catch(e) { alert('Помилка мережі'); }
+}
+
+// ── Вимкнути/увімкнути античіт для учня ─────────────────────────────────
+async function toggleAnticheat(studentId, disable) {
+    const label = disable ? 'вимкнути' : 'увімкнути';
+    if (!confirm(`${disable ? 'Вимкнути' : 'Увімкнути'} античіт для цього учня?`)) return;
+    try {
+        const resp = await fetch(`/api/session/${SESSION_ID}/anticheat`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({student_id: studentId, disabled: disable})
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showToast(`✓ Античіт ${disable ? 'вимкнено' : 'увімкнено'} для учня`);
+            pollParticipants();
+        } else {
+            alert('Помилка: ' + (data.error || 'невідома'));
+        }
+    } catch(e) { alert('Помилка мережі'); }
+}
+
+// ── Глобальний вимикач античіту ──────────────────────────────────────────
+async function toggleGlobalAnticheat(disable) {
+    if (!confirm(disable ? 'Вимкнути античіт для ВСІХ учнів у сесії?' : 'Увімкнути античіт для всіх?')) return;
+    try {
+        const resp = await fetch(`/api/session/${SESSION_ID}/anticheat`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({disabled: disable})
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showToast(`✓ Глобальний античіт ${disable ? 'вимкнено' : 'увімкнено'}`);
+            const btn = document.getElementById('global-ac-btn');
+            if (btn) {
+                btn.innerText = disable ? '🔓 Античіт вимкнено (увімкнути)' : '🔒 Античіт (вимкнути для всіх)';
+                btn.style.background = disable ? '#fef3c7' : '';
+            }
+        }
+    } catch(e) { alert('Помилка мережі'); }
+}
+
+// ── Копіювання ────────────────────────────────────────────────────────────
+function showToast(msg) {
+    const t = document.getElementById('copy-toast');
+    if (msg) t.innerText = msg;
+    t.style.opacity = '1';
+    t.style.transform = 'translateX(-50%) translateY(0)';
+    setTimeout(() => {
+        t.style.opacity = '0';
+        t.style.transform = 'translateX(-50%) translateY(60px)';
+        t.innerText = '✓ Скопійовано!'; // reset
+    }, 2000);
+}
+
+async function copyCode(code) {
+    try {
+        await navigator.clipboard.writeText(code);
+        showToast();
+    } catch(e) {
+        const inp = document.getElementById('join-code-text');
+        if (inp) {
+            const range = document.createRange();
+            range.selectNodeContents(inp);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+            document.execCommand('copy');
+        }
+        showToast();
+    }
+}
+
+async function copyLink() {
+    const inp = document.getElementById('join-link-input');
+    try {
+        await navigator.clipboard.writeText(inp.value);
+    } catch(e) {
+        inp.select();
+        document.execCommand('copy');
+    }
+    showToast();
+}
+
+// ── Запуск ────────────────────────────────────────────────────────────────
+if (SESSION_STATUS !== 'closed') {
+    pollParticipants();
+    setInterval(pollParticipants, 4000);
+}
+</script>
+{% endblock %}

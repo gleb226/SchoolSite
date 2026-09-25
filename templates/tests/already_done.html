@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Спроби вичерпано — {{ test.title }}{% endblock %}
+{% block content %}
+<div class="auth-box">
+    <div class="card warning-card">
+        <h2>Спроби вичерпано</h2>
+        <p>Ви вже використали максимальну кількість спроб ({{ test.max_attempts }}) для проходження тесту <strong>«{{ test.title }}»</strong>.</p>
+        <div style="margin-top: 20px;">
+            <a href="{{ url_for('tests.results', test_id=test.id) }}" class="btn btn-primary">Переглянути результати</a>
+            <a href="{{ url_for('tests.list_tests') }}" class="btn btn-outline">До списку тестів</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

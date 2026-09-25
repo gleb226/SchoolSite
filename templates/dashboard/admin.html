@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Панель управління — Адміністрація ліцею №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('settings') }} Панель управління закладом</h1>
+    <p>Кабінет для директора, завучів та головного адміністратора</p>
+</div>
+
+<div class="admin-nav-bar" style="margin-bottom: 25px;">
+    <a href="{{ url_for('admin.users') }}" class="btn btn-primary">{{ icons.icon('users') }} Користувачі (Заявки)</a>
+    <a href="{{ url_for('admin.classes') }}" class="btn btn-primary">{{ icons.icon('school') }} Класи</a>
+    <a href="{{ url_for('admin.subjects') }}" class="btn btn-primary">{{ icons.icon('book') }} Предмети</a>
+    <a href="{{ url_for('admin.manage_news') }}" class="btn btn-primary">{{ icons.icon('file-check') }} Новини</a>
+    <a href="{{ url_for('voting.create_voting') }}" class="btn btn-outline">{{ icons.icon('check') }} Створити вибори</a>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-num">{{ stats.total_users }}</div>
+        <div class="stat-label">Всього користувачів</div>
+    </div>
+    <div class="stat-card {% if stats.pending_users > 0 %}stat-alert{% endif %}">
+        <div class="stat-num">{{ stats.pending_users }}</div>
+        <div class="stat-label">Очікують підтвердження</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ stats.students }}</div>
+        <div class="stat-label">Учнів</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ stats.teachers }}</div>
+        <div class="stat-label">Вчителів</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ stats.classes }}</div>
+        <div class="stat-label">Класів</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ stats.grades }}</div>
+        <div class="stat-label">Виставлених оцінок</div>
+    </div>
+</div>
+
+<div class="dashboard-section" style="margin-top: 35px;">
+    <h3>Нові заявки на реєстрацію (очікують схвалення)</h3>
+    {% if pending %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ПІБ</th>
+                    <th>Логін</th>
+                    <th>Email</th>
+                    <th>Телефон</th>
+                    <th>Заявлена роль</th>
+                    <th>Дата реєстрації</th>
+                    <th>Дії</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in pending %}
+                <tr>
+                    <td><strong>{{ u.full_name }}</strong></td>
+                    <td>{{ u.username }}</td>
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.phone or '-' }}</td>
+                    <td><span class="role-badge">{{ u.role }}</span></td>
+                    <td>{{ u.created_at }}</td>
+                    <td>
+                        <a href="{{ url_for('admin.edit_user', user_id=u.id) }}" class="btn btn-sm btn-primary">Керувати</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>Немає нових заявок, які очікують підтвердження.</p>
+    {% endif %}
+</div>
+{% endblock %}

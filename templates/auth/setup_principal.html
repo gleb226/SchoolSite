@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Створення директора — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="auth-box">
+    <h2>{{ icons.icon('settings') }} Створення першого директора</h2>
+    <p class="subtitle">Ця сторінка доступна тільки поки в системі немає директора або адміністратора.</p>
+
+    {% if success %}<div class="alert alert-success">{{ success }}</div>{% endif %}
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+    <form method="POST" class="standard-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        {% if setup_token_required %}
+        <div class="form-group">
+            <label for="setup_token">Код розробника:</label>
+            <input type="password" id="setup_token" name="setup_token" required>
+        </div>
+        {% endif %}
+
+        <div class="form-group">
+            <label for="full_name">ПІБ директора *:</label>
+            <input type="text" id="full_name" name="full_name" required>
+        </div>
+
+        <div class="form-group">
+            <label for="username">Логін *:</label>
+            <input type="text" id="username" name="username" required autocomplete="username">
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email *:</label>
+            <input type="email" id="email" name="email" required autocomplete="email">
+        </div>
+
+        <div class="form-group">
+            <label for="phone">Телефон:</label>
+            <input type="tel" id="phone" name="phone" placeholder="+380...">
+        </div>
+
+        <div class="form-group">
+            <label for="password">Пароль *:</label>
+            <input type="password" id="password" name="password" minlength="8" required autocomplete="new-password">
+        </div>
+
+        <button type="submit" class="btn btn-primary">{{ icons.icon('check') }} Створити директора</button>
+    </form>
+
+    <div class="auth-footer">
+        <p><a href="{{ url_for('auth.login') }}">До входу</a></p>
+    </div>
+</div>
+{% endblock %}

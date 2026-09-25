@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Кабінет батьків — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>Кабінет батьків</h1>
+    <p>Вітаємо, <strong>{{ current_user.full_name }}</strong>! Тут відображається успішність ваших дітей.</p>
+</div>
+
+{% if children %}
+    {% for child in children %}
+        <div class="card student-report-card" style="margin-bottom: 30px;">
+            <h2>{{ icons.icon('user') }} Учень: {{ child.full_name }}</h2>
+            <p><small>Логін: {{ child.username }} | Email: {{ child.email }}</small></p>
+
+            <h3>Останні оцінки дитини:</h3>
+            {% if child.recent_grades %}
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Предмет</th>
+                            <th>Оцінка</th>
+                            <th>Тип</th>
+                            <th>Дата</th>
+                            <th>Коментар вчителя</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for g in child.recent_grades %}
+                        <tr>
+                            <td>{{ g.subject_name }}</td>
+                            <td><strong class="grade-badge {% if g.grade >= 10 %}high{% elif g.grade >= 7 %}med{% else %}low{% endif %}">{{ g.grade }}</strong></td>
+                            <td>{{ g.grade_type }}</td>
+                            <td>{{ g.date }}</td>
+                            <td>{{ g.comment or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>Оцінок для цього учня поки не внесено.</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+{% else %}
+    <div class="card warning-card">
+        <h3>У вас поки немає прив'язаних дітей</h3>
+        <p>Для того щоб прив'язати вашу дитину до вашого батьківського акаунту, зверніться до класного керівника або адміністратора школи.</p>
+    </div>
+{% endif %}
+
+<div class="info-box" style="margin-top: 30px;">
+    <h3>Сповіщення про успішність у Telegram</h3>
+    <p>Підключіть наш Telegram-бот щоб отримувати миттєві сповіщення, якщо дитина отримає низьку оцінку або пропустить урок.</p>
+</div>
+{% endblock %}

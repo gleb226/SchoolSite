@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}403 — Доступ заборонено{% endblock %}
+{% block content %}
+<div class="error-page">
+    <h1>403 — Доступ заборонено</h1>
+    <p>У вас немає прав для перегляду цієї сторінки або ваш акаунт ще не активовано адміністратором.</p>
+    <p><a href="{{ url_for('public.index') }}" class="btn">На головну</a></p>
+</div>
+{% endblock %}

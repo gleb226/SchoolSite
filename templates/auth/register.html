@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Реєстрація — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="auth-box">
+    <h2>Реєстрація учня</h2>
+    <p class="subtitle">Форма для реєстрації учнів ліцею. Батьків до учнів прив'язує адміністрація, а вчителів призначає керівництво.</p>
+
+    {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('auth.register') }}" class="standard-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="form-group">
+            <label for="full_name">ПІБ (Повне ім'я) *:</label>
+            <input type="text" id="full_name" name="full_name" required placeholder="Наприклад: Коваленко Іван Васильович">
+        </div>
+
+        <div class="form-group">
+            <label for="username">Логін (ім'я для входу) *:</label>
+            <input type="text" id="username" name="username" required autocomplete="username">
+        </div>
+
+        <div class="form-group">
+            <label for="email">Електронна пошта *:</label>
+            <input type="email" id="email" name="email" required autocomplete="email">
+        </div>
+
+        <div class="form-group">
+            <label for="phone">Номер телефону:</label>
+            <input type="tel" id="phone" name="phone" placeholder="+380...">
+        </div>
+
+        <div class="form-group">
+            <label for="password">Пароль (мін. 8 символів) *:</label>
+            <input type="password" id="password" name="password" minlength="8" required autocomplete="new-password">
+        </div>
+
+        <div class="form-group">
+            <label for="confirm_password">Повторіть пароль *:</label>
+            <input type="password" id="confirm_password" name="confirm_password" minlength="8" required autocomplete="new-password">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Зареєструватися (учень)</button>
+    </form>
+
+    <div class="auth-footer">
+        <p>Вже зареєстровані? <a href="{{ url_for('auth.login') }}">Увійти</a></p>
+    </div>
+</div>
+{% endblock %}

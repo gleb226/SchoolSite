@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Особистий кабінет учня — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>Особистий кабінет учня</h1>
+    <p>Вітаємо, <strong>{{ current_user.full_name }}</strong>!</p>
+</div>
+
+<!-- Швидкі дії учня -->
+<div style="margin-bottom: 30px;">
+    <h3 style="margin-bottom: 12px; color: #374151;">Що хочете зробити?</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+        <a href="{{ url_for('tests.list_tests') }}" class="btn btn-primary" style="font-size: 15px; padding: 10px 20px;">
+            {{ icons.icon('file-check') }} Мої тести
+        </a>
+        <a href="{{ url_for('diary.grades') }}" class="btn btn-outline" style="font-size: 15px; padding: 10px 20px;">
+            {{ icons.icon('book') }} Мої оцінки
+        </a>
+        <a href="{{ url_for('diary.attendance') }}" class="btn btn-outline" style="font-size: 15px; padding: 10px 20px;">
+            {{ icons.icon('calendar') }} Відвідуваність
+        </a>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <!-- Останні оцінки -->
+    <div class="dashboard-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0;">{{ icons.icon('book') }} Останні оцінки</h3>
+            <a href="{{ url_for('diary.grades') }}" class="btn btn-sm btn-outline">Усі оцінки →</a>
+        </div>
+        {% if grades %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Предмет</th>
+                        <th>Оцінка</th>
+                        <th>Тип</th>
+                        <th>Дата</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in grades %}
+                    <tr>
+                        <td>{{ g.subject_name }}</td>
+                        <td><strong class="grade-badge {% if g.grade >= 10 %}high{% elif g.grade >= 7 %}med{% else %}low{% endif %}">{{ g.grade }}</strong></td>
+                        <td>{{ g.grade_type }}</td>
+                        <td>{{ g.date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="color: #64748b;">Оцінок поки немає.</p>
+        {% endif %}
+    </div>
+
+    <!-- Відвідуваність -->
+    <div class="dashboard-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0;">{{ icons.icon('calendar') }} Відвідуваність</h3>
+            <a href="{{ url_for('diary.attendance') }}" class="btn btn-sm btn-outline">Детальніше →</a>
+        </div>
+        {% if attendance %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Предмет</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in attendance %}
+                    <tr>
+                        <td>{{ a.date }}</td>
+                        <td>{{ a.subject_name }}</td>
+                        <td>
+                            {% if a.status == 'present' %}<span class="badge-success">Присутній</span>
+                            {% elif a.status == 'absent' %}<span class="badge-danger">Відсутній</span>
+                            {% elif a.status == 'late' %}<span class="badge-warning">Запізнення</span>
+                            {% elif a.status == 'excused' %}<span class="badge-info">Поважна причина</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="color: #64748b;">Записів відвідуваності поки немає.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Доступні тести -->
+<div class="dashboard-section" style="margin-top: 30px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3>{{ icons.icon('file-check') }} Тести для вашого класу</h3>
+        <a href="{{ url_for('tests.list_tests') }}" class="btn btn-sm btn-outline">Усі тести →</a>
+    </div>
+    {% if tests %}
+        <div class="cards-list">
+            {% for t in tests %}
+            <div class="card" style="margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <h4 style="margin: 0 0 4px 0;">{{ t.title }}</h4>
+                        <small style="color: #64748b;">⏱ {{ t.time_limit_minutes }} хв. | Спроб: {{ t.max_attempts }}</small>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <a href="{{ url_for('tests.take_test', test_id=t.id) }}" class="btn btn-primary btn-sm">Пройти тест</a>
+                        <a href="{{ url_for('tests.results', test_id=t.id) }}" class="btn btn-sm btn-outline">Результати</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card">
+            <p style="color: #64748b; margin: 0;">Наразі активних тестів для вашого класу немає.</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Telegram -->
+{% if not current_user.telegram_id %}
+<div class="dashboard-section info-box" style="margin-top: 30px;">
+    <h3>Підключити Telegram-сповіщення</h3>
+    <p>Отримуйте оцінки та оголошення прямо в Telegram. Знайдіть бота та виконайте команду <code>/link</code>.</p>
+</div>
+{% endif %}
+{% endblock %}

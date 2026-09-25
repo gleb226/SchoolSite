@@ -1,0 +1,15 @@
+﻿{% extends "base.html" %}
+{% block title %}{{ item.title }} — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<article class="news-full">
+    <div class="news-meta">
+        <span class="news-date">{{ icons.icon('calendar') }} {{ item.created_at[:10] }}</span>
+        <span class="news-author">{{ item.author_name }}</span>
+    </div>
+    <h1>{{ item.title }}</h1>
+    <div class="news-body">{{ item.content | safe }}</div>
+    <div class="back-link">
+        <a href="{{ url_for('public.news') }}">&larr; Повернутися до новин</a>
+    </div>
+</article>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Очікує підтвердження — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="auth-box">
+    <div class="card warning-card">
+        <h2>⏳ Очікування підтвердження</h2>
+        <p>Ваш обліковий запис ще не підтверджено адміністрацією ліцею.</p>
+        <p>Будь ласка, зверніться до вашого класного керівника або заступника директора для активації облікового запису.</p>
+        <div style="margin-top: 20px;">
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-outline">Вийти з акаунту</a>
+            <a href="{{ url_for('public.index') }}" class="btn">На головну</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

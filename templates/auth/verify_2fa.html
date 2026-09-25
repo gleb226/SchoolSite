@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Двоетапна перевірка — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="auth-box">
+    <h2>Двоетапна автентифікація (2FA)</h2>
+    <p class="subtitle">Ми надіслали 6-значний код перевірки у ваш підключений Telegram бот</p>
+
+    {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('auth.verify_2fa') }}" class="standard-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="form-group">
+            <label for="code">Введіть 6-значний код із Telegram:</label>
+            <input type="text" id="code" name="code" maxlength="6" pattern="[0-9]{6}" required placeholder="123456" autofocus style="font-size: 24px; letter-spacing: 6px; text-align: center;">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Підтвердити вхід</button>
+    </form>
+
+    <div class="auth-footer">
+        <p><a href="{{ url_for('auth.login') }}">Повернутися до входу</a></p>
+    </div>
+</div>
+{% endblock %}

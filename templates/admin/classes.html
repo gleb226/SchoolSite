@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Управління класами — Адміністрація ліцею №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('school') }} Управління класами</h1>
+    <p><a href="{{ url_for('admin.admin_dashboard') }}">← До панелі керування</a></p>
+</div>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<div class="dashboard-grid">
+    <div class="dashboard-card">
+        <h3>Додати новий клас</h3>
+        <form method="POST" class="standard-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="create">
+
+            <div class="form-group">
+                <label for="name">Назва класу * (наприклад, 10-А):</label>
+                <input type="text" id="name" name="name" required placeholder="10-А">
+            </div>
+
+            <div class="form-group">
+                <label for="year">Навчальний рік *:</label>
+                <input type="number" id="year" name="year" value="2025" required>
+            </div>
+
+            <div class="form-group">
+                <label for="teacher_id">Класний керівник:</label>
+                <select id="teacher_id" name="teacher_id">
+                    <option value="">-- Не призначено --</option>
+                    {% for t in teachers %}
+                        <option value="{{ t.id }}">{{ t.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Створити клас</button>
+        </form>
+    </div>
+
+    <div class="dashboard-card">
+        <h3>Список класів</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Клас</th>
+                    <th>Рік</th>
+                    <th>Класний керівник</th>
+                    <th>К-сть учнів</th>
+                    <th>Дія</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in classes %}
+                <tr>
+                    <td><strong>{{ c.name }}</strong></td>
+                    <td>{{ c.year }}</td>
+                    <td>{{ c.teacher_name or '—' }}</td>
+                    <td>{{ c.student_count }}</td>
+                    <td>
+                        <form method="POST" style="display:inline;" onsubmit="return confirm('Видалити клас?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="class_id" value="{{ c.id }}">
+                            <button type="submit" class="btn btn-sm btn-danger btn-outline">Видалити</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

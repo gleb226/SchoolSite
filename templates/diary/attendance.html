@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Графік відвідуваності — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('calendar') }} Графік відвідуваності</h1>
+    <p>Учень: <strong>{{ current_user.full_name }}</strong></p>
+</div>
+
+<div class="stats-grid" style="margin-bottom: 30px;">
+    <div class="stat-card">
+        <div class="stat-num" style="color: #27ae60;">{{ summary.present }}</div>
+        <div class="stat-label">Присутній (днів/уроків)</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num" style="color: #c0392b;">{{ summary.absent }}</div>
+        <div class="stat-label">Пропущено без причини</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num" style="color: #f39c12;">{{ summary.late }}</div>
+        <div class="stat-label">Запізнень</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num" style="color: #2980b9;">{{ summary.excused }}</div>
+        <div class="stat-label">Поважна причина</div>
+    </div>
+</div>
+
+<h3>Детальний журнал відвідуваності</h3>
+{% if attendance %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Предмет</th>
+                <th>Статус</th>
+                <th>Примітка</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in attendance %}
+            <tr>
+                <td>{{ a.date }}</td>
+                <td><strong>{{ a.subject_name }}</strong></td>
+                <td>
+                    {% if a.status == 'present' %}
+                        <span class="badge-success">Присутній</span>
+                    {% elif a.status == 'absent' %}
+                        <span class="badge-danger">Відсутній</span>
+                    {% elif a.status == 'late' %}
+                        <span class="badge-warning">Запізнення</span>
+                    {% elif a.status == 'excused' %}
+                        <span class="badge-info">Поважна причина</span>
+                    {% endif %}
+                </td>
+                <td>{{ a.note or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div class="card">
+        <p>Записів у журналі відвідуваності поки немає.</p>
+    </div>
+{% endif %}
+{% endblock %}

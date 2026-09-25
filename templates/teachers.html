@@ -1,0 +1,22 @@
+﻿{% extends "base.html" %}
+{% block title %}Вчителі — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<h1>Педагогічний колектив</h1>
+<p>Наші вчителі — висококваліфіковані фахівці з великим досвідом роботи.</p>
+{% if teachers %}
+<div class="teachers-grid">
+    {% for t in teachers %}
+    <div class="teacher-card">
+        <div class="teacher-avatar">{{ icons.icon('user', 'icon icon-lg') }}</div>
+        <h3>{{ t.full_name }}</h3>
+        {% if t.subject_specialty %}<p class="subject-badge">{{ t.subject_specialty }}</p>{% endif %}
+        {% if t.experience_years %}<p>Стаж: {{ t.experience_years }} років</p>{% endif %}
+        {% if t.bio %}<p class="teacher-bio">{{ t.bio }}</p>{% endif %}
+        {% if t.email %}<p>{{ icons.icon('mail') }} {{ t.email }}</p>{% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p>Інформація про вчителів буде додана найближчим часом.</p>
+{% endif %}
+{% endblock %}

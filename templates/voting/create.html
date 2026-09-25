@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Створити голосування — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('check') }} Створення нового голосування</h1>
+    <p><a href="{{ url_for('voting.list_votings') }}">← До списку голосувань</a></p>
+</div>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<form method="POST" class="standard-form card" style="max-width: 800px; margin: 0 auto;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <div class="form-group">
+        <label for="title">Назва голосування *:</label>
+        <input type="text" id="title" name="title" required placeholder="Наприклад: Вибори президента учнівського самоврядування">
+    </div>
+
+    <div class="form-group">
+        <label for="description">Опис / положення про голосування:</label>
+        <textarea id="description" name="description" rows="3" placeholder="Правила, мета голосування..."></textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="end_days">Тривалість голосування (в днях):</label>
+        <input type="number" id="end_days" name="end_days" value="7" min="1" max="30">
+    </div>
+
+    <hr style="margin: 25px 0;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3>Кандидати</h3>
+        <button type="button" id="add-candidate-btn" class="btn btn-outline">+ Додати кандидата</button>
+    </div>
+
+    <div id="candidates-container">
+        <div class="card candidate-block" style="margin-bottom: 15px; background: #fdfdfd; border: 1px solid #ccc;">
+            <div class="dashboard-grid">
+                <div class="form-group">
+                    <label>ПІБ кандидата *:</label>
+                    <input type="text" name="candidate_name[]" required placeholder="Іваненко Петро">
+                </div>
+                <div class="form-group">
+                    <label>Клас:</label>
+                    <input type="text" name="candidate_class[]" placeholder="10-А">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Передвиборча програма / опис:</label>
+                <input type="text" name="candidate_desc[]" placeholder="Короткий опис або слоган кандидата...">
+            </div>
+        </div>
+
+        <div class="card candidate-block" style="margin-bottom: 15px; background: #fdfdfd; border: 1px solid #ccc;">
+            <div class="dashboard-grid">
+                <div class="form-group">
+                    <label>ПІБ кандидата *:</label>
+                    <input type="text" name="candidate_name[]" required placeholder="Петренко Анна">
+                </div>
+                <div class="form-group">
+                    <label>Клас:</label>
+                    <input type="text" name="candidate_class[]" placeholder="11-Б">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Передвиборча програма / опис:</label>
+                <input type="text" name="candidate_desc[]" placeholder="Короткий опис або слоган кандидата...">
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 25px;">
+        <button type="submit" class="btn btn-primary" style="font-size: 16px; padding: 10px 25px;">Запустити голосування</button>
+    </div>
+</form>
+
+<script>
+    document.getElementById('add-candidate-btn').addEventListener('click', () => {
+        const container = document.getElementById('candidates-container');
+        const block = document.createElement('div');
+        block.className = 'card candidate-block';
+        block.style.cssText = 'margin-bottom: 15px; background: #fdfdfd; border: 1px solid #ccc;';
+        block.innerHTML = `
+            <div style="display: flex; justify-content: space-between;">
+                <strong>Кандидат</strong>
+                <button type="button" class="btn btn-sm btn-danger btn-outline" onclick="this.closest('.candidate-block').remove()">Видалити</button>
+            </div>
+            <div class="dashboard-grid" style="margin-top: 10px;">
+                <div class="form-group">
+                    <label>ПІБ кандидата *:</label>
+                    <input type="text" name="candidate_name[]" required placeholder="ПІБ кандидата">
+                </div>
+                <div class="form-group">
+                    <label>Клас:</label>
+                    <input type="text" name="candidate_class[]" placeholder="Клас">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Передвиборча програма / опис:</label>
+                <input type="text" name="candidate_desc[]" placeholder="Короткий опис програми...">
+            </div>
+        `;
+        container.appendChild(block);
+    });
+</script>
+{% endblock %}

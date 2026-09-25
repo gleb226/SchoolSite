@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Очікування — {{ test.title }}{% endblock %}
+{% block content %}
+
+<div style="max-width:500px; margin:40px auto; text-align:center;">
+
+    <!-- ── Стан: очікування (waiting) ────────────────────────────────── -->
+    <div id="state-waiting" {% if session.status != 'waiting' %}style="display:none;"{% endif %}>
+        <div style="font-size:60px; margin-bottom:16px;" class="anim-bounce">⏳</div>
+        <h2 style="color:#1e3a8a; font-size:22px; font-weight:800; margin-bottom:8px;">
+            Ви успішно приєдналися!
+        </h2>
+        <p style="color:#64748b; font-size:15px; margin-bottom:24px;">
+            Очікуйте, поки вчитель розпочне тест для всіх учасників.
+        </p>
+
+        <div class="card" style="border-left:4px solid #6366f1; background:#f0f4ff; text-align:left; margin-bottom:20px;">
+            <p style="margin:0 0 6px; font-size:13px; color:#64748b;">Тест:</p>
+            <p style="margin:0; font-weight:700; color:#312e81; font-size:16px;">{{ test.title }}</p>
+            {% if test.time_limit_minutes %}
+            <p style="margin:6px 0 0; font-size:13px; color:#64748b;">
+                ⏱ Обмеження часу: <strong>{{ test.time_limit_minutes }} хв.</strong>
+            </p>
+            {% endif %}
+        </div>
+
+        <div class="card" style="background:#f8fafc; padding:16px;">
+            <div style="font-size:26px; font-weight:800; color:#6366f1;" id="waiting-count">
+                {{ participant_count }}
+            </div>
+            <div style="font-size:13px; color:#64748b; margin-top:2px;">учнів вже в сесії</div>
+        </div>
+
+        <p style="font-size:13px; color:#94a3b8; margin-top:16px;">
+            <span class="live-dot" style="display:inline-block; width:7px; height:7px; background:#22c55e; border-radius:50%; animation:livePulse 1.5s infinite; margin-right:5px; vertical-align:middle;"></span>
+            Сторінка оновлюється автоматично...
+        </p>
+    </div>
+
+    <!-- ── Стан: тест запущено (active) ──────────────────────────────── -->
+    <div id="state-active" {% if session.status != 'active' %}style="display:none;"{% endif %}>
+        <div style="font-size:60px; margin-bottom:16px;">🚀</div>
+        <h2 style="color:#059669; font-size:24px; font-weight:800; margin-bottom:8px;">
+            Тест розпочато!
+        </h2>
+        <p style="color:#64748b; font-size:15px; margin-bottom:28px;">
+            Вчитель запустив тест. Натисніть кнопку нижче, щоб почати.
+        </p>
+        <a href="{{ url_for('session.begin_test', session_id=session.id) }}"
+           class="btn btn-primary"
+           style="width:100%; padding:15px; font-size:18px; font-weight:800;
+                  background:linear-gradient(135deg,#059669,#10b981); border:none;
+                  border-radius:10px; display:flex; justify-content:center; gap:8px;">
+            ▶️ Розпочати тест
+        </a>
+        <p style="font-size:12px; color:#94a3b8; margin-top:12px;">
+            ⏱ Таймер почнеться після натискання
+        </p>
+    </div>
+
+    <!-- ── Стан: сесія закрита ────────────────────────────────────────── -->
+    <div id="state-closed" {% if session.status != 'closed' %}style="display:none;"{% endif %}>
+        <div style="font-size:60px; margin-bottom:16px;">✅</div>
+        <h2 style="color:#374151; font-size:22px; font-weight:800; margin-bottom:8px;">
+            Сесія завершена
+        </h2>
+        <p style="color:#64748b; font-size:15px; margin-bottom:24px;">
+            Вчитель закрив сесію.
+        </p>
+        <a href="{{ url_for('tests.list_tests') }}" class="btn btn-outline">
+            ← До тестів
+        </a>
+    </div>
+
+</div>
+
+<style>
+@keyframes anim-bounce {
+    0%,100% { transform: translateY(0); }
+    50%      { transform: translateY(-10px); }
+}
+.anim-bounce { display:inline-block; animation: anim-bounce 1.8s ease-in-out infinite; }
+@keyframes livePulse {
+    0%,100% { opacity:1; }
+    50%      { opacity:.3; }
+}
+</style>
+
+<script>
+const SESSION_ID = {{ session.id }};
+let currentStatus = '{{ session.status }}';
+
+async function pollStatus() {
+    try {
+        const resp = await fetch('/session/api/status/' + SESSION_ID);
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        if (data.status !== currentStatus) {
+            currentStatus = data.status;
+
+            document.getElementById('state-waiting').style.display = data.status === 'waiting' ? 'block' : 'none';
+            document.getElementById('state-active').style.display  = data.status === 'active'  ? 'block' : 'none';
+            document.getElementById('state-closed').style.display  = data.status === 'closed'  ? 'block' : 'none';
+
+            // Якщо тест запущено — ефект переходу
+            if (data.status === 'active') {
+                navigator.vibrate && navigator.vibrate([100, 50, 200]);
+            }
+        }
+
+        // Оновлюємо лічильник учасників
+        const countEl = document.getElementById('waiting-count');
+        if (countEl) countEl.innerText = data.count;
+
+    } catch(e) {}
+}
+
+// Polling тільки поки сесія не закрита
+if (currentStatus !== 'closed') {
+    setInterval(pollStatus, 3000);
+}
+</script>
+{% endblock %}

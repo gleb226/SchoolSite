@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Голосування — {{ voting.title }}{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('check') }} {{ voting.title }}</h1>
+    <p>{{ voting.description }}</p>
+</div>
+
+{% if already_voted %}
+    <div class="card warning-card">
+        <h3>{{ icons.icon('check') }} Ви вже віддали свій голос у цьому голосуванні</h3>
+        <p>Кожен зареєстрований користувач має право лише на один голос для забезпечення чесності виборів.</p>
+        <p><a href="{{ url_for('voting.results', voting_id=voting.id) }}" class="btn btn-primary">Переглянути результати</a></p>
+    </div>
+{% else %}
+    <div class="card" style="max-width: 700px; margin: 0 auto;">
+        <h3>Оберіть кандидата зі списку:</h3>
+
+        <form method="POST" action="{{ url_for('voting.submit_vote', voting_id=voting.id) }}" class="standard-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="candidates-list" style="margin: 20px 0;">
+                {% for c in candidates %}
+                <div class="card candidate-card" style="margin-bottom: 15px; border: 1px solid #ddd; padding: 15px;">
+                    <label style="display: flex; align-items: flex-start; cursor: pointer; gap: 15px;">
+                        <input type="radio" name="candidate_id" value="{{ c.id }}" required style="margin-top: 5px;">
+                        <div>
+                            <strong style="font-size: 18px;">{{ c.name }}</strong>
+                            <span class="badge-info">{{ c.class_name }}</span>
+                            <p style="margin-top: 8px; color: #555;">{{ c.description }}</p>
+                        </div>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="font-size: 16px; padding: 12px 30px;" onclick="return confirm('Підтвердити ваш вибір? Після цього змінити голос буде неможливо.');">
+                Віддати голос
+            </button>
+            <a href="{{ url_for('voting.list_votings') }}" class="btn btn-outline">Назад</a>
+        </form>
+    </div>
+{% endif %}
+{% endblock %}

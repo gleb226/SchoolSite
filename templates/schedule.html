@@ -1,0 +1,43 @@
+﻿{% extends "base.html" %}
+{% block title %}Розклад дзвінків — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<h1>Розклад дзвінків</h1>
+<p>Навчальний день в ліцеї — з 08:00 до 15:20.</p>
+<table class="schedule-table">
+    <thead>
+        <tr>
+            <th>Урок</th>
+            <th>Початок</th>
+            <th>Кінець</th>
+            <th>Тривалість</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for lesson, start, end in bell_schedule %}
+        <tr {% if loop.index in (4, 5) %}class="break-after"{% endif %}>
+            <td><strong>{{ lesson }} урок</strong></td>
+            <td>{{ start }}</td>
+            <td>{{ end }}</td>
+            <td>45 хв</td>
+        </tr>
+        {% if loop.index == 3 %}
+        <tr class="break-row">
+            <td colspan="4" style="text-align:center; background:#f0f8f0;">Велика перерва (20 хв): 10:35 — 10:55</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </tbody>
+</table>
+<div class="schedule-note">
+    <h3>Перерви між уроками</h3>
+    <ul>
+        <li>Після 1 уроку: 10 хв (08:45 — 08:55)</li>
+        <li>Після 2 уроку: 10 хв (09:40 — 09:50)</li>
+        <li>Після 3 уроку: 20 хв (10:35 — 10:55) — велика перерва</li>
+        <li>Після 4 уроку: 10 хв (11:40 — 11:50)</li>
+        <li>Після 5 уроку: 10 хв (12:35 — 12:45)</li>
+        <li>Після 6 уроку: 10 хв (13:30 — 13:40)</li>
+        <li>Після 7 уроку: 10 хв (14:25 — 14:35)</li>
+    </ul>
+</div>
+{% endblock %}

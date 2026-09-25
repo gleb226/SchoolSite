@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Редагування користувача — Адміністрація ліцею №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>Редагування: {{ user_obj.full_name }}</h1>
+    <p><a href="{{ url_for('admin.users') }}">← До списку користувачів</a></p>
+</div>
+
+{% if success %}<div class="alert alert-success">{{ success }}</div>{% endif %}
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<div class="card" style="margin-bottom: 25px;">
+    <h3>Інформація про профіль</h3>
+    <table class="info-table">
+        <tr><th>ID:</th><td>{{ user_obj.id }}</td></tr>
+        <tr><th>Логін:</th><td>{{ user_obj.username }}</td></tr>
+        <tr><th>ПІБ:</th><td>{{ user_obj.full_name }}</td></tr>
+        <tr><th>Email:</th><td>{{ user_obj.email }}</td></tr>
+        <tr><th>Телефон:</th><td>{{ user_obj.phone or 'Не вказано' }}</td></tr>
+        <tr><th>Поточна роль:</th><td><strong>{{ user_obj.role }}</strong></td></tr>
+        <tr><th>Статус підтвердження:</th><td>{% if user_obj.is_approved %}<span class="badge-success">Схвалено</span>{% else %}<span class="badge-danger">Очікує</span>{% endif %}</td></tr>
+        <tr><th>Telegram ID:</th><td>{{ user_obj.telegram_id or 'Не підключено' }}</td></tr>
+        <tr><th>2FA захист:</th><td>{% if user_obj.two_fa_enabled %}Увімкнено{% else %}Вимкнено{% endif %}</td></tr>
+    </table>
+</div>
+
+<div class="dashboard-grid">
+    <!-- Підтвердження або відхилення -->
+    <div class="dashboard-card">
+        <h3>1. Підтвердження акаунту</h3>
+        <form method="POST" style="margin-bottom: 15px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="approve">
+            <button type="submit" class="btn btn-primary" {% if user_obj.is_approved %}disabled{% endif %}>
+                {{ icons.icon('check') }} Підтвердити реєстрацію
+            </button>
+        </form>
+
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="reject">
+            <button type="submit" class="btn btn-danger btn-outline">
+                {{ icons.icon('x') }} Відхилити / Деактивувати
+            </button>
+        </form>
+    </div>
+
+    <!-- Зміна ролі -->
+    <div class="dashboard-card">
+        <h3>2. Зміна ролі</h3>
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="update_role">
+
+            <div class="form-group">
+                <label for="role">Оберіть нову роль:</label>
+                <select name="role" id="role">
+                    <option value="admin" {% if user_obj.role == 'admin' %}selected{% endif %}>Admin</option>
+                    <option value="student" {% if user_obj.role == 'student' %}selected{% endif %}>Учень</option>
+                    <option value="parent" {% if user_obj.role == 'parent' %}selected{% endif %}>Батько / Мати</option>
+                    <option value="teacher" {% if user_obj.role == 'teacher' %}selected{% endif %}>Вчитель</option>
+                    <option value="class_president" {% if user_obj.role == 'class_president' %}selected{% endif %}>Староста класу</option>
+                    <option value="school_president" {% if user_obj.role == 'school_president' %}selected{% endif %}>Президент школи</option>
+                    <option value="vice_principal" {% if user_obj.role == 'vice_principal' %}selected{% endif %}>Завуч</option>
+                    <option value="principal" {% if user_obj.role == 'principal' %}selected{% endif %}>Директор</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Зберегти роль</button>
+        </form>
+    </div>
+
+    <!-- Призначення класу (для учнів) -->
+    {% if user_obj.role in ('student', 'class_president') %}
+    <div class="dashboard-card">
+        <h3>3. Призначити учня до класу</h3>
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="assign_class">
+
+            <div class="form-group">
+                <label for="class_id">Оберіть клас:</label>
+                <select name="class_id" id="class_id" required>
+                    <option value="">-- Оберіть клас --</option>
+                    {% for c in classes %}
+                        <option value="{{ c.id }}">{{ c.name }} ({{ c.year }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Додати до класу</button>
+        </form>
+    </div>
+
+    <!-- Прив'язка батьків (для учня) -->
+    <div class="dashboard-card">
+        <h3>Прив'язати батьків до учня</h3>
+        {% if linked_parents %}
+            <p><strong>Прив'язані батьки:</strong></p>
+            <ul>
+                {% for p in linked_parents %}
+                    <li>{{ p.full_name }} ({{ p.email or p.phone }})</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-muted">Батьків ще не прив'язано</p>
+        {% endif %}
+
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="link_parent">
+
+            <div class="form-group">
+                <label for="parent_id">Оберіть акаунт батьків:</label>
+                <select name="parent_id" id="parent_id" required>
+                    <option value="">-- Оберіть батьків --</option>
+                    {% for p in parents %}
+                        <option value="{{ p.id }}">{{ p.full_name }} ({{ p.email or p.username }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Прив'язати батьків</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Прив'язка учня (для батьків) -->
+    {% if user_obj.role == 'parent' %}
+    <div class="dashboard-card">
+        <h3>Прив'язані діти (учні)</h3>
+        {% if linked_students %}
+            <ul>
+                {% for s in linked_students %}
+                    <li style="margin-bottom: 8px;">
+                        {{ s.full_name }} ({{ s.email or s.username }})
+                        <form method="POST" style="display:inline; margin-left: 10px;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="action" value="unlink_student">
+                            <input type="hidden" name="student_id" value="{{ s.id }}">
+                            <button type="submit" class="btn btn-sm btn-danger">Відв'язати</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-muted">Учнів ще не прив'язано до цього акаунту</p>
+        {% endif %}
+
+        <form method="POST" style="margin-top: 15px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="link_student">
+
+            <div class="form-group">
+                <label for="student_id">Прив'язати дитину (учня):</label>
+                <select name="student_id" id="student_id" required>
+                    <option value="">-- Оберіть учня --</option>
+                    {% for s in students %}
+                        <option value="{{ s.id }}">{{ s.full_name }} ({{ s.email or s.username }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Прив'язати учня</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Керування 2FA -->
+    <div class="dashboard-card">
+        <h3>4. Керування 2FA</h3>
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="set_2fa">
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="two_fa_enabled" value="1" {% if user_obj.two_fa_enabled %}checked{% endif %}>
+                    Вимагати двоетапний вхід через Telegram
+                </label>
+            </div>
+            <button type="submit" class="btn btn-outline">Оновити налаштування 2FA</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

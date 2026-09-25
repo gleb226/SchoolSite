@@ -1,0 +1,247 @@
+{% import "_icons.html" as icons %}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ужгородський ліцей №3{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+    {% block head %}{% endblock %}
+</head>
+<body>
+{{ icons.sprite() }}
+
+<!-- ── МОБІЛЬНИЙ OVERLAY ──────────────────────────────────────────────────── -->
+<div class="nav-overlay" id="nav-overlay" aria-hidden="true"></div>
+
+<!-- ── ШАПКА ─────────────────────────────────────────────────────────────── -->
+<header class="site-header">
+    <div class="container">
+        <div class="header-top">
+            <!-- Логотип -->
+            <a href="{{ url_for('public.index') }}" class="logo">
+                <span class="logo-icon">{{ icons.icon('school', 'icon icon-lg') }}</span>
+                <div class="logo-text">
+                    <strong>Ужгородський ліцей №3</strong>
+                    <small>вул. Мінська 27, Ужгород</small>
+                </div>
+            </a>
+
+            <!-- Дії (праворуч у шапці) -->
+            <div class="header-actions">
+                {% if current_user %}
+                    <span class="user-greeting">{{ icons.icon('user') }} <span class="user-name-text">{{ current_user.full_name }}</span></span>
+                    <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-sm">Кабінет</a>
+                    <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline">Вийти</a>
+                {% else %}
+                    <a href="{{ url_for('auth.login') }}" class="btn btn-sm">Увійти</a>
+                    <a href="{{ url_for('auth.register') }}" class="btn btn-sm btn-outline">Реєстрація</a>
+                {% endif %}
+
+                <!-- Бургер-кнопка (тільки мобільний) -->
+                <button class="burger-btn" id="burger-btn" aria-label="Відкрити меню" aria-expanded="false" aria-controls="mobile-nav">
+                    <span class="burger-bar"></span>
+                    <span class="burger-bar"></span>
+                    <span class="burger-bar"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Десктопна навігація -->
+    <nav class="main-nav" aria-label="Головне меню">
+        <div class="container">
+            <ul class="nav-list">
+                <li><a href="{{ url_for('public.index') }}" {% if request.endpoint == 'public.index' %}class="active"{% endif %}>Головна</a></li>
+                <li><a href="{{ url_for('public.about') }}" {% if request.endpoint == 'public.about' %}class="active"{% endif %}>Про ліцей</a></li>
+                <li><a href="{{ url_for('public.teachers') }}" {% if request.endpoint == 'public.teachers' %}class="active"{% endif %}>Вчителі</a></li>
+                <li><a href="{{ url_for('public.news') }}" {% if request.endpoint == 'public.news' %}class="active"{% endif %}>Новини</a></li>
+                <li><a href="{{ url_for('public.schedule') }}" {% if request.endpoint == 'public.schedule' %}class="active"{% endif %}>Розклад</a></li>
+                <li><a href="{{ url_for('public.contacts') }}" {% if request.endpoint == 'public.contacts' %}class="active"{% endif %}>Контакти</a></li>
+                <li><a href="{{ url_for('public.enrollment') }}" {% if request.endpoint == 'public.enrollment' %}class="active"{% endif %}>Вступ</a></li>
+                {% if current_user %}
+                    <li><a href="{{ url_for('voting.list_votings') }}" {% if request.blueprint == 'voting' %}class="active"{% endif %}>Голосування</a></li>
+                    {% if current_user.role in ('student', 'teacher', 'admin', 'principal', 'vice_principal') %}
+                        <li><a href="{{ url_for('tests.list_tests') }}" {% if request.blueprint == 'tests' %}class="active"{% endif %}>Тести</a></li>
+                    {% endif %}
+                    <li>
+                        <a href="https://mriia.gov.ua/select" target="_blank" rel="noopener"
+                           style="display:flex;align-items:center;gap:5px;">
+                            📓 Електронний щоденник
+                            <span style="font-size:10px;opacity:.6;">↗</span>
+                        </a>
+                    </li>
+                    {% if current_user.role in ('admin', 'principal', 'vice_principal') %}
+                        <li><a href="{{ url_for('admin.admin_dashboard') }}" class="admin-link">{{ icons.icon('settings') }} Адмін</a></li>
+                    {% endif %}
+                {% endif %}
+            </ul>
+        </div>
+    </nav>
+</header>
+
+<!-- ── МОБІЛЬНЕ МЕНЮ (sidebar) ───────────────────────────────────────────── -->
+<nav class="mobile-nav" id="mobile-nav" aria-label="Мобільне меню" aria-hidden="true">
+    <div class="mobile-nav-header">
+        <span class="mobile-nav-title">{{ icons.icon('school') }} Ліцей №3</span>
+        <button class="mobile-nav-close" id="mobile-nav-close" aria-label="Закрити меню">✕</button>
+    </div>
+
+    {% if current_user %}
+    <div class="mobile-user-card">
+        <div class="mobile-user-avatar">{{ icons.icon('user') }}</div>
+        <div>
+            <div class="mobile-user-name">{{ current_user.full_name }}</div>
+            <div class="mobile-user-role">
+                {% if current_user.role == 'student' %}Учень
+                {% elif current_user.role == 'teacher' %}Вчитель
+                {% elif current_user.role == 'admin' %}Адміністратор
+                {% elif current_user.role == 'principal' %}Директор
+                {% elif current_user.role == 'parent' %}Батько/мати
+                {% else %}{{ current_user.role }}{% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <ul class="mobile-nav-list">
+        <li><a href="{{ url_for('public.index') }}" {% if request.endpoint == 'public.index' %}class="active"{% endif %}>🏠 Головна</a></li>
+        <li><a href="{{ url_for('public.about') }}" {% if request.endpoint == 'public.about' %}class="active"{% endif %}>🏫 Про ліцей</a></li>
+        <li><a href="{{ url_for('public.teachers') }}" {% if request.endpoint == 'public.teachers' %}class="active"{% endif %}>👩‍🏫 Вчителі</a></li>
+        <li><a href="{{ url_for('public.news') }}" {% if request.endpoint == 'public.news' %}class="active"{% endif %}>📰 Новини</a></li>
+        <li><a href="{{ url_for('public.schedule') }}" {% if request.endpoint == 'public.schedule' %}class="active"{% endif %}>🔔 Розклад дзвінків</a></li>
+        <li><a href="{{ url_for('public.contacts') }}" {% if request.endpoint == 'public.contacts' %}class="active"{% endif %}>📍 Контакти</a></li>
+        <li><a href="{{ url_for('public.enrollment') }}" {% if request.endpoint == 'public.enrollment' %}class="active"{% endif %}>📝 Вступ до ліцею</a></li>
+
+        {% if current_user %}
+        <li class="mobile-nav-divider"></li>
+        <li><a href="{{ url_for('dashboard.dashboard') }}" class="mobile-nav-highlight">🏠 Особистий кабінет</a></li>
+        <li><a href="{{ url_for('voting.list_votings') }}" {% if request.blueprint == 'voting' %}class="active"{% endif %}>🗳️ Голосування</a></li>
+        {% if current_user.role in ('student', 'teacher', 'admin', 'principal', 'vice_principal') %}
+            <li><a href="{{ url_for('tests.list_tests') }}" {% if request.blueprint == 'tests' %}class="active"{% endif %}>📋 Тести</a></li>
+        {% endif %}
+        <li>
+            <a href="https://mriia.gov.ua/select" target="_blank" rel="noopener">
+                📓 Електронний щоденник ↗
+            </a>
+        </li>
+        {% if current_user.role in ('admin', 'principal', 'vice_principal') %}
+            <li><a href="{{ url_for('admin.admin_dashboard') }}" class="mobile-nav-admin">⚙️ Адмін-панель</a></li>
+        {% endif %}
+        <li class="mobile-nav-divider"></li>
+        <li><a href="{{ url_for('auth.logout') }}" class="mobile-nav-logout">🚪 Вийти</a></li>
+        {% else %}
+        <li class="mobile-nav-divider"></li>
+        <li><a href="{{ url_for('auth.login') }}" class="mobile-nav-highlight">🔑 Увійти</a></li>
+        <li><a href="{{ url_for('auth.register') }}">📋 Реєстрація</a></li>
+        {% endif %}
+    </ul>
+</nav>
+
+<!-- ── ГОЛОВНИЙ КОНТЕНТ ───────────────────────────────────────────────────── -->
+<main class="main-content">
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+</main>
+
+<!-- ── ПІДВАЛ ─────────────────────────────────────────────────────────────── -->
+<footer class="site-footer">
+    <div class="container">
+        <div class="footer-grid">
+            <div>
+                <h4>Ужгородський ліцей №3</h4>
+                <p>вул. Мінська 27, Ужгород, Закарпатська область, 88000</p>
+                <p>{{ icons.icon('phone') }} (0312) 61-23-45</p>
+                <p>{{ icons.icon('mail') }} lyceum3@uzhgorod.gov.ua</p>
+            </div>
+            <div>
+                <h4>Швидкі посилання</h4>
+                <ul>
+                    <li><a href="{{ url_for('public.about') }}">Про ліцей</a></li>
+                    <li><a href="{{ url_for('public.teachers') }}">Педагогічний колектив</a></li>
+                    <li><a href="{{ url_for('public.news') }}">Новини</a></li>
+                    <li><a href="{{ url_for('public.enrollment') }}">Вступ до ліцею</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>Партнери</h4>
+                <ul>
+                    <li><a href="https://mon.gov.ua" target="_blank" rel="noopener">МОН України</a></li>
+                    <li><a href="https://zoippo.uz.ua" target="_blank" rel="noopener">ЗОІППО</a></li>
+                    <li><a href="https://osvita.ua" target="_blank" rel="noopener">Osvita.ua</a></li>
+                    <li><a href="https://uzhgorod.gov.ua" target="_blank" rel="noopener">Ужгородська міська рада</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2025 Ужгородський ліцей №3. Всі права захищені.</p>
+        </div>
+    </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+// ── Бургер-меню ──────────────────────────────────────────────────────────────
+(function() {
+    const burgerBtn   = document.getElementById('burger-btn');
+    const mobileNav   = document.getElementById('mobile-nav');
+    const overlay     = document.getElementById('nav-overlay');
+    const closeBtn    = document.getElementById('mobile-nav-close');
+
+    function openMenu() {
+        mobileNav.classList.add('is-open');
+        overlay.classList.add('is-visible');
+        burgerBtn.classList.add('is-active');
+        burgerBtn.setAttribute('aria-expanded', 'true');
+        mobileNav.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('nav-open');
+    }
+
+    function closeMenu() {
+        mobileNav.classList.remove('is-open');
+        overlay.classList.remove('is-visible');
+        burgerBtn.classList.remove('is-active');
+        burgerBtn.setAttribute('aria-expanded', 'false');
+        mobileNav.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('nav-open');
+    }
+
+    burgerBtn.addEventListener('click', () => {
+        mobileNav.classList.contains('is-open') ? closeMenu() : openMenu();
+    });
+    closeBtn.addEventListener('click', closeMenu);
+    overlay.addEventListener('click', closeMenu);
+
+    // Закрити при натисканні Escape
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeMenu();
+    });
+
+    // Закрити при переході на посилання
+    mobileNav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
+})();
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"
+    onload="renderMathInElement(document.body, {
+        delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false},
+            {left: '\\\\(', right: '\\\\)', display: false},
+            {left: '\\\\[', right: '\\\\]', display: true}
+        ],
+        throwOnError: false
+    });">
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,70 @@
+﻿{% extends "base.html" %}
+{% block title %}Про ліцей — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<h1>Про ліцей</h1>
+
+<section class="about-section">
+    <h2>Загальна інформація</h2>
+    <table class="info-table">
+        <tr><th>Назва закладу</th><td>Ужгородський ліцей №3</td></tr>
+        <tr><th>Адреса</th><td>набережна Незалежності, 19, Ужгород, Закарпатська область, 88000</td></tr>
+        <tr><th>Телефон</th><td>(0312) 61-23-45</td></tr>
+        <tr><th>Email</th><td>lyceum3@uzhgorod.gov.ua</td></tr>
+        <tr><th>Рік заснування</th><td>1985</td></tr>
+        <tr><th>Тип закладу</th><td>Ліцей III ступеня</td></tr>
+        <tr><th>Форма власності</th><td>Комунальна</td></tr>
+        <tr><th>Засновник</th><td>Ужгородська міська рада</td></tr>
+    </table>
+</section>
+
+<section class="about-section">
+    <h2>Наша місія</h2>
+    <p>Ужгородський ліцей №3 — сучасний навчальний заклад, що забезпечує якісну освіту для учнів Ужгорода та Закарпатської області. Наша місія — виховати свідомих, освічених і патріотичних громадян України, здатних до творчого мислення та самореалізації.</p>
+    <p>Ліцей здійснює навчання за загальноосвітніми програмами з поглибленим вивченням окремих предметів. Ми прагнемо поєднувати класичну освіту з сучасними технологіями навчання.</p>
+</section>
+
+<section class="about-section">
+    <h2>Наші досягнення</h2>
+    <ul class="achievement-list">
+        <li>{{ icons.icon('check') }} Переможці обласних олімпіад з математики, фізики та англійської мови</li>
+        <li>{{ icons.icon('check') }} Учасники міжнародних освітніх обмінів</li>
+        <li>{{ icons.icon('check') }} Лауреати премій МОН України в галузі освіти</li>
+        <li>{{ icons.icon('check') }} Сертифікований заклад за програмою «Нова українська школа»</li>
+        <li>{{ icons.icon('check') }} Співпраця з університетами Ужгорода та зарубіжними партнерами</li>
+    </ul>
+</section>
+
+<section class="about-section">
+    <h2>Матеріально-технічна база</h2>
+    <ul>
+        <li>{{ icons.icon('book') }} Бібліотека з фондом понад 15 000 книг</li>
+        <li>{{ icons.icon('settings') }} Комп'ютерний клас з 30 робочими місцями та доступом до Інтернету</li>
+        <li>{{ icons.icon('settings') }} Оснащені лабораторії з фізики, хімії та біології</li>
+        <li>{{ icons.icon('school') }} Спортивний зал та спортивний майданчик</li>
+        <li>{{ icons.icon('school') }} Їдальня на 200 місць</li>
+        <li>{{ icons.icon('school') }} Актовий зал на 350 місць</li>
+    </ul>
+</section>
+
+<section class="about-section">
+    <h2>Партнери</h2>
+    <div class="partners-grid">
+        <a href="https://mon.gov.ua" target="_blank" rel="noopener" class="partner-card">
+            <strong>МОН України</strong>
+            <span>Міністерство освіти і науки</span>
+        </a>
+        <a href="https://zoippo.uz.ua" target="_blank" rel="noopener" class="partner-card">
+            <strong>ЗОІППО</strong>
+            <span>Закарпатський обласний інститут</span>
+        </a>
+        <a href="https://osvita.ua" target="_blank" rel="noopener" class="partner-card">
+            <strong>Osvita.ua</strong>
+            <span>Освітній портал України</span>
+        </a>
+        <a href="https://uzhgorod.gov.ua" target="_blank" rel="noopener" class="partner-card">
+            <strong>Ужгородська міська рада</strong>
+            <span>Засновник ліцею</span>
+        </a>
+    </div>
+</section>
+{% endblock %}

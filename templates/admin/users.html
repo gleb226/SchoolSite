@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Управління користувачами — Адміністрація ліцею №3{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>{{ icons.icon('users') }} Список користувачів</h1>
+    <p><a href="{{ url_for('admin.admin_dashboard') }}">← Повернутися до панелі керування</a></p>
+</div>
+
+<div class="filter-bar" style="margin-bottom: 20px;">
+    <strong>Фільтр за роллю: </strong>
+    <a href="{{ url_for('admin.users') }}" class="btn btn-sm {% if not role_filter %}btn-primary{% else %}btn-outline{% endif %}">Всі</a>
+    <a href="{{ url_for('admin.users', role='student') }}" class="btn btn-sm {% if role_filter == 'student' %}btn-primary{% else %}btn-outline{% endif %}">Учні</a>
+    <a href="{{ url_for('admin.users', role='teacher') }}" class="btn btn-sm {% if role_filter == 'teacher' %}btn-primary{% else %}btn-outline{% endif %}">Вчителі</a>
+    <a href="{{ url_for('admin.users', role='parent') }}" class="btn btn-sm {% if role_filter == 'parent' %}btn-primary{% else %}btn-outline{% endif %}">Батьки</a>
+    <a href="{{ url_for('admin.users', role='principal') }}" class="btn btn-sm {% if role_filter == 'principal' %}btn-primary{% else %}btn-outline{% endif %}">Директор</a>
+    <a href="{{ url_for('admin.users', role='vice_principal') }}" class="btn btn-sm {% if role_filter == 'vice_principal' %}btn-primary{% else %}btn-outline{% endif %}">Завуч</a>
+</div>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>ПІБ</th>
+            <th>Логін</th>
+            <th>Email</th>
+            <th>Роль</th>
+            <th>Підтверджено</th>
+            <th>Telegram</th>
+            <th>Дія</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for u in users %}
+        <tr>
+            <td>{{ u.id }}</td>
+            <td><strong>{{ u.full_name }}</strong></td>
+            <td>{{ u.username }}</td>
+            <td>{{ u.email }}</td>
+            <td><span class="role-badge">{{ u.role }}</span></td>
+            <td>
+                {% if u.is_approved %}
+                    <span class="badge-success">Підтверджено</span>
+                {% else %}
+                    <span class="badge-danger">Очікує</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if u.telegram_id %}
+                    ID: {{ u.telegram_id }}
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+            <td>
+                <a href="{{ url_for('admin.edit_user', user_id=u.id) }}" class="btn btn-sm btn-outline">Редагувати</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
