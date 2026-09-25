@@ -24,7 +24,8 @@ from flask import (Blueprint, g, request, jsonify, render_template,
                    redirect, url_for, flash)
 
 from app.database import get_db
-from app.security import login_required, role_required, sanitize_input, validate_csrf, generate_csrf_token
+from app.security import sanitize_input, validate_csrf, generate_csrf_token
+from app.auth import login_required, role_required
 from app.llm import llm_generate, llm_ocr
 
 logger = logging.getLogger(__name__)
