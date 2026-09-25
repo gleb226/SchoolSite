@@ -207,10 +207,13 @@ CREATE TABLE IF NOT EXISTS materials (
 def get_db():
     if 'db' not in g:
         db_path = current_app.config.get('DATABASE', 'school.db')
-        g.db = sqlite3.connect(db_path)
+        g.db = sqlite3.connect(db_path, timeout=20.0)
         g.db.row_factory = sqlite3.Row
         g.db.execute('PRAGMA foreign_keys = ON')
-        g.db.execute('PRAGMA journal_mode = WAL')
+        try:
+            g.db.execute('PRAGMA journal_mode = WAL')
+        except sqlite3.OperationalError:
+            pass
     return g.db
 
 
@@ -286,14 +289,17 @@ def init_db():
 
 def seed_data():
     db_path = current_app.config.get('DATABASE', 'school.db')
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=20.0)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
 
-    existing = conn.execute('SELECT COUNT(*) as c FROM users').fetchone()['c']
-    if existing > 0:
-        conn.close()
-        return
+    try:
+        existing = conn.execute('SELECT COUNT(*) as c FROM users').fetchone()['c']
+        if existing > 0:
+            conn.close()
+            return
+    except sqlite3.OperationalError:
+        pass
 
     logger.info('Seeding sample data...')
 
@@ -307,17 +313,20 @@ def seed_data():
         ('student2', 'student2@school3.uz.ua', hash_pw('student123'), 'student', 'Сидоренко Марія Петрівна', '+380312000004', 1, 1),
         ('parent1', 'parent1@school3.uz.ua', hash_pw('parent123'), 'parent', 'Петренко Іван Миколайович', '+380312000005', 1, 1),
     ]
-    conn.executemany(
-        'INSERT INTO users (username,email,password_hash,role,full_name,phone,is_approved,is_active) VALUES (?,?,?,?,?,?,?,?)',
-        users
-    )
+    try:
+        conn.executemany(
+            'INSERT OR IGNORE INTO users (username,email,password_hash,role,full_name,phone,is_approved,is_active) VALUES (?,?,?,?,?,?,?,?)',
+            users
+        )
+    except sqlite3.IntegrityError:
+        pass
 
     classes = [('10-А', 2025, 2), ('10-Б', 2025, None), ('11-А', 2025, 2)]
-    conn.executemany('INSERT INTO classes (name,year,class_teacher_id) VALUES (?,?,?)', classes)
+    conn.executemany('INSERT OR IGNORE INTO classes (name,year,class_teacher_id) VALUES (?,?,?)', classes)
 
-    conn.execute('INSERT INTO student_classes VALUES (3,1)')
-    conn.execute('INSERT INTO student_classes VALUES (4,1)')
-    conn.execute('INSERT INTO parent_student VALUES (5,3)')
+    conn.execute('INSERT OR IGNORE INTO student_classes VALUES (3,1)')
+    conn.execute('INSERT OR IGNORE INTO student_classes VALUES (4,1)')
+    conn.execute('INSERT OR IGNORE INTO parent_student VALUES (5,3)')
 
     subjects = [
         ('Математика',), ('Українська мова',), ('Фізика',), ('Хімія',),

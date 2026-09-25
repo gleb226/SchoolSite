@@ -13,8 +13,11 @@ from app.database import init_db, seed_data
 app = create_app()
 
 with app.app_context():
-    init_db()
-    seed_data()
+    try:
+        init_db()
+        seed_data()
+    except Exception as e:
+        print(f"DB init/seed skipped or failed: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

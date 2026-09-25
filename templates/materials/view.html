@@ -43,6 +43,7 @@
             <a href="{{ url_for('materials.edit_material', material_id=mat.id) }}" class="btn btn-outline btn-sm">✏️ Редагувати</a>
             {% endif %}
             <button onclick="window.print()" class="btn btn-outline btn-sm">🖨️ Друк</button>
+            <button onclick="downloadMd()" class="btn btn-outline btn-sm">⬇️ Скачати MD</button>
             <button onclick="copyMd()" class="btn btn-outline btn-sm" id="copy-btn">📋 Копіювати MD</button>
             <a href="{{ url_for('materials.list_materials') }}" class="btn btn-outline btn-sm">← Список</a>
         </div>
@@ -82,6 +83,18 @@ function copyMd() {
         b.textContent = '✓ Скопійовано';
         setTimeout(() => b.textContent = '📋 Копіювати MD', 2000);
     });
+}
+
+function downloadMd() {
+    const blob = new Blob([RAW], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '{{ mat.title | replace(" ", "_") }}.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 </script>
 {% endblock %}

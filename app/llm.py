@@ -243,9 +243,9 @@ def _build_slots(task: str = 'default') -> list[_ProviderSlot]:
         for model in gemini_models:
             slots.append(_ProviderSlot('Gemini', _call_gemini, key, model))
 
-    # If task is OCR or test_generation → Gemini first, others after
-    if task in ('ocr', 'test_generation', 'grading'):
-        return slots  # Gemini only for these tasks, faster
+    # If task is OCR → Gemini only (Vision required)
+    if task in ('ocr',):
+        return slots  # Gemini only
 
     # OpenRouter slots
     for key in OPENROUTER_KEYS:
