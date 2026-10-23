@@ -19,10 +19,19 @@
 
         <div class="form-group">
             <label for="password">Пароль:</label>
-            <div style="position: relative; display: flex; align-items: center;">
-                <input type="password" id="password" name="password" required autocomplete="current-password" style="padding-right: 42px; width: 100%;">
-                <button type="button" onclick="togglePasswordVisibility('password', this)" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.1rem; padding: 4px;" title="Показати/приховати пароль" tabindex="-1">
-                    👁️
+            <div style="position: relative; display: flex; align-items: center; width: 100%;">
+                <input type="password" id="password" name="password" required autocomplete="current-password" style="padding-right: 42px; width: 100%; box-sizing: border-box;">
+                <button type="button" class="btn-toggle-pw" onclick="togglePw('password', this)" style="position: absolute; right: 10px; background: transparent; border: none; cursor: pointer; color: var(--text-muted, #64748b); display: flex; align-items: center; justify-content: center; padding: 4px;" title="Показати / сховати пароль" tabindex="-1">
+                    <svg class="icon-eye" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <svg class="icon-eye-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"></path>
+                        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"></path>
+                        <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"></path>
+                        <line x1="2" y1="2" x2="22" y2="22"></line>
+                    </svg>
                 </button>
             </div>
         </div>
@@ -35,4 +44,24 @@
         <p class="help-text"><small>Першого директора можна створити на сторінці /setup-principal. Учні реєструються самостійно й очікують підтвердження.</small></p>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function togglePw(inputId, btn) {
+    const inp = document.getElementById(inputId);
+    if (!inp) return;
+    const eye = btn.querySelector('.icon-eye');
+    const eyeOff = btn.querySelector('.icon-eye-off');
+    if (inp.type === 'password') {
+        inp.type = 'text';
+        if (eye) eye.style.display = 'none';
+        if (eyeOff) eyeOff.style.display = 'block';
+    } else {
+        inp.type = 'password';
+        if (eye) eye.style.display = 'block';
+        if (eyeOff) eyeOff.style.display = 'none';
+    }
+}
+</script>
 {% endblock %}

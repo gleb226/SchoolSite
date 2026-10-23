@@ -33,9 +33,15 @@ def login():
         if not validate_csrf(request.form.get('csrf_token', '')):
             error = 'Недійсний CSRF токен'
         else:
-            username = sanitize_input(request.form.get('username', ''))
+            username = sanitize_input(request.form.get('username', '')).strip()
             password = request.form.get('password', '')
             user = UserModel.get_by_username(username)
+            if not user and '@' not in username:
+                # Якщо раптом ввели email або username в іншому регістрі
+                db = get_db()
+                row = db.execute('SELECT * FROM users WHERE LOWER(username)=LOWER(?) OR LOWER(email)=LOWER(?)', (username, username)).fetchone()
+                if row:
+                    user = dict(row)
             if not user or not check_password(password, user['password_hash']):
                 error = 'Невірний логін або пароль'
             elif not user['is_active']:
