@@ -96,30 +96,46 @@ def register():
                 if existing:
                     error = 'Користувач з таким логіном або email вже існує'
                 else:
+                    # Перевіряємо, чи є вже суперадмін в системі
+                    has_superuser = db.execute("SELECT 1 FROM users WHERE role = 'superuser' LIMIT 1").fetchone()
+                    total_users = db.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
+                    is_first_user = (has_superuser is None) or (total_users and total_users['cnt'] == 0)
+
                     from app.auth import hash_password as hp
                     ph = hp(password)
-                    new_user_id = UserModel.create(username, email, ph, role, full_name, phone)
-                    
-                    # Notify admin on Telegram if configured
-                    import os
-                    admin_tg = os.environ.get('ADMIN_TELEGRAM_ID', '513546547').strip()
-                    if admin_tg:
-                        try:
-                            from app.bot.telegram_bot import send_notification
-                            import asyncio
-                            notif_msg = (
-                                f"<b>Нова реєстрація учня!</b>\n\n"
-                                f"<b>ПІБ:</b> {full_name}\n"
-                                f"<b>Логін:</b> {username}\n"
-                                f"<b>Email:</b> {email}\n"
-                                f"<b>Телефон:</b> {phone or 'не вказано'}\n\n"
-                                f"<i>Зайдіть в адмін-панель для підтвердження.</i>"
-                            )
-                            asyncio.run(send_notification(int(admin_tg), notif_msg))
-                        except Exception as ex:
-                            logger.warning(f"Could not send registration tg notification: {ex}")
 
-                    return render_template('auth/register_success.html')
+                    if is_first_user:
+                        # Перший зареєстрований користувач автоматично стає Superadmin без очікування схвалення
+                        role = 'superuser'
+                        user_data = UserModel.create(username, email, ph, role, full_name, phone, is_approved=1)
+                        token = generate_jwt(user_data['id'], username, role)
+                        resp = redirect(url_for('dashboard.superuser_dashboard'))
+                        set_auth_cookie(resp, token)
+                        flash('Вітаємо! Ви зареєстровані як головний адміністратор (Суперадмін).', 'success')
+                        return resp
+                    else:
+                        new_user_id = UserModel.create(username, email, ph, role, full_name, phone, is_approved=0)
+                        
+                        # Notify admin on Telegram if configured
+                        import os
+                        admin_tg = os.environ.get('ADMIN_TELEGRAM_ID', '513546547').strip()
+                        if admin_tg:
+                            try:
+                                from app.bot.telegram_bot import send_notification
+                                import asyncio
+                                notif_msg = (
+                                    f"<b>Нова реєстрація учня!</b>\n\n"
+                                    f"<b>ПІБ:</b> {full_name}\n"
+                                    f"<b>Логін:</b> {username}\n"
+                                    f"<b>Email:</b> {email}\n"
+                                    f"<b>Телефон:</b> {phone or 'не вказано'}\n\n"
+                                    f"<i>Зайдіть в адмін-панель для підтвердження.</i>"
+                                )
+                                asyncio.run(send_notification(int(admin_tg), notif_msg))
+                            except Exception as ex:
+                                logger.warning(f"Could not send registration tg notification: {ex}")
+
+                        return render_template('auth/register_success.html')
     return render_template('auth/register.html', error=error, csrf_token=csrf_token)
 
 

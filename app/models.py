@@ -41,11 +41,11 @@ class UserModel:
         return [dict(r) for r in rows]
 
     @staticmethod
-    def create(username, email, password_hash, role, full_name, phone=''):
+    def create(username, email, password_hash, role, full_name, phone='', is_approved=0):
         db = get_db()
         db.execute(
-            'INSERT INTO users (username,email,password_hash,role,full_name,phone,is_approved) VALUES (?,?,?,?,?,?,0)',
-            (username, email, password_hash, role, full_name, phone)
+            'INSERT INTO users (username,email,password_hash,role,full_name,phone,is_approved) VALUES (?,?,?,?,?,?,?)',
+            (username, email, password_hash, role, full_name, phone, 1 if is_approved else 0)
         )
         db.commit()
         row = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
