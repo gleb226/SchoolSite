@@ -19,9 +19,10 @@ app = create_app()
 with app.app_context():
     try:
         init_db()
-        seed_data()
+        if os.environ.get('SEED_DEMO_DATA', 'false').lower() == 'true':
+            seed_data()
     except Exception as e:
-        logger.warning(f"DB init/seed: {e}")
+        logger.warning(f"DB init: {e}")
 
 # Запуск Telegram-бота у фоновому потоці, якщо задано BOT_TOKEN
 def _run_bot_background():

@@ -108,7 +108,7 @@ def register():
                         # Перший зареєстрований користувач автоматично стає Superadmin без очікування схвалення
                         role = 'superuser'
                         user_data = UserModel.create(username, email, ph, role, full_name, phone, is_approved=1)
-                        token = generate_jwt(user_data['id'], username, role)
+                        token = generate_jwt(user_data['id'], role)
                         resp = redirect(url_for('dashboard.superuser_dashboard'))
                         set_auth_cookie(resp, token)
                         flash('Вітаємо! Ви зареєстровані як головний адміністратор (Суперадмін).', 'success')
