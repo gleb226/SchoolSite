@@ -1,9 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Електронний щоденник — Оцінки{% endblock %}
 {% block content %}
-<div class="dashboard-header">
-    <h1>{{ icons.icon('book') }} Електронний щоденник</h1>
-    <p>Учень: <strong>{{ current_user.full_name }}</strong></p>
+<div class="dashboard-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+    <div>
+        <h1>{{ icons.icon('book') }} Електронний щоденник</h1>
+        <p>Учень: <strong>{{ current_user.full_name }}</strong></p>
+    </div>
+    {% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal', 'superuser') %}
+    <div>
+        <a href="{{ url_for('diary.add_grade') }}" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:6px;">
+            📝 Журнал виставлення оцінок
+        </a>
+    </div>
+    {% endif %}
 </div>
 
 <div class="card filter-card" style="margin-bottom: 25px;">

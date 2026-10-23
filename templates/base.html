@@ -101,10 +101,8 @@
                     <li><a href="{{ url_for('services.gpd_index') }}" {% if request.endpoint == 'services.gpd_index' %}class="active"{% endif %}>🎒 ГПД</a></li>
                     <li><a href="{{ url_for('services.certificates_index') }}" {% if request.endpoint == 'services.certificates_index' %}class="active"{% endif %}>📑 Довідки</a></li>
                     <li>
-                        <a href="https://mriia.gov.ua/select" target="_blank" rel="noopener"
-                           style="display:flex;align-items:center;gap:5px;">
-                            📓 Електронний щоденник
-                            <span style="font-size:10px;opacity:.6;">↗</span>
+                        <a href="{{ url_for('diary.grades') }}" style="display:flex;align-items:center;gap:5px;">
+                            📓 Щоденник
                         </a>
                     </li>
                 {% endif %}
@@ -160,8 +158,8 @@
         <li><a href="{{ url_for('services.gpd_index') }}" {% if request.endpoint == 'services.gpd_index' %}class="active"{% endif %}>🎒 Група подовженого дня</a></li>
         <li><a href="{{ url_for('services.certificates_index') }}" {% if request.endpoint == 'services.certificates_index' %}class="active"{% endif %}>📑 Електронні довідки</a></li>
         <li>
-            <a href="https://mriia.gov.ua/select" target="_blank" rel="noopener">
-                📓 Електронний щоденник ↗
+            <a href="{{ url_for('diary.grades') }}">
+                📓 Електронний щоденник
             </a>
         </li>
         <li class="mobile-nav-divider"></li>

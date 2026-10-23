@@ -27,7 +27,7 @@ def _student_can_access_test(db, user, test):
 
 
 def _staff_can_access_test(user, test):
-    if user['role'] in ('admin', 'principal', 'vice_principal'):
+    if user['role'] in ('superuser', 'admin', 'principal', 'vice_principal'):
         return True
     return user['role'] == 'teacher' and int(test.get('teacher_id') or 0) == int(user['id'])
 
@@ -75,7 +75,7 @@ def list_tests():
         ).fetchall()]
     else:
         completed_topics = []
-        if user['role'] in ('admin', 'principal', 'vice_principal'):
+        if user['role'] in ('superuser', 'admin', 'principal', 'vice_principal'):
             rows = db.execute(
                 """SELECT t.*, s.name as subject_name, cl.name as class_name,
                           (CASE WHEN t.variant_group_id IS NOT NULL AND t.id = t.variant_group_id
@@ -486,6 +486,7 @@ def create_test():
             topic = sanitize_input(request.form.get('topic', ''), 200)
             shuffle_questions = 1 if request.form.get('shuffle_questions') else 0
             shuffle_options = 1 if request.form.get('shuffle_options') else 0
+            deadline = sanitize_input(request.form.get('deadline', ''), 50)
             # action was removed, using is_published checkbox
             is_active_val = 1 if request.form.get('is_published') else 0
 
@@ -508,10 +509,10 @@ def create_test():
                     db.execute(
                         'INSERT INTO tests (title,description,teacher_id,class_id,subject_id,'
                         'time_limit_minutes,max_attempts,is_active,is_practice,topic,'
-                        'shuffle_questions,shuffle_options,variant_group_id) VALUES (?,?,?,?,?,?,?,?,0,?,?,?,?)',
+                        'shuffle_questions,shuffle_options,variant_group_id,deadline) VALUES (?,?,?,?,?,?,?,?,0,?,?,?,?,?)',
                         (test_title, description, user['id'], class_id, subject_id,
                          time_limit, max_attempts, is_active_val, topic,
-                         shuffle_questions, shuffle_options, variant_group_id_val)
+                         shuffle_questions, shuffle_options, variant_group_id_val, deadline or None)
                     )
                     db.commit()
                     tid = db.execute('SELECT last_insert_rowid() as id').fetchone()['id']
@@ -576,9 +577,9 @@ def create_test():
                 db.execute(
                     'INSERT INTO tests (title,description,teacher_id,class_id,subject_id,'
                     'time_limit_minutes,max_attempts,is_active,is_practice,topic,'
-                    'shuffle_questions,shuffle_options) VALUES (?,?,?,?,?,?,?,?,0,?,?,?)',
+                    'shuffle_questions,shuffle_options,deadline) VALUES (?,?,?,?,?,?,?,?,0,?,?,?,?)',
                     (title, description, user['id'], class_id, subject_id,
-                     time_limit, max_attempts, is_active_val, topic, shuffle_questions, shuffle_options)
+                     time_limit, max_attempts, is_active_val, topic, shuffle_questions, shuffle_options, deadline or None)
                 )
                 db.commit()
                 test_id = db.execute('SELECT last_insert_rowid() as id').fetchone()['id']
@@ -612,14 +613,25 @@ def create_test():
                                        (q_id, opt_text, 1 if is_correct else 0))
                         db.commit()
 
-                # Notify parents of students in the class when test is published
+                # Notify students directly AND parents when test is published
                 if is_active_val and class_id:
                     try:
                         subj_name = db.execute('SELECT name FROM subjects WHERE id=?', (subject_id,)).fetchone()
                         subj_label = subj_name['name'] if subj_name else ''
+                        base_url = request.host_url.rstrip('/')
+                        test_link = f"{base_url}/tests/{test_id}/take"
+
+                        # Students of this class
+                        students = db.execute(
+                            '''SELECT DISTINCT u.telegram_id, u.full_name
+                               FROM users u
+                               JOIN student_classes sc ON sc.student_id=u.id
+                               WHERE sc.class_id=? AND u.telegram_id IS NOT NULL''',
+                            (class_id,)
+                        ).fetchall()
+
                         parents = db.execute(
-                            '''SELECT DISTINCT u.telegram_id, u.id as parent_id,
-                                      s.full_name as student_name
+                            '''SELECT DISTINCT u.telegram_id, s.full_name as student_name
                                FROM users u
                                JOIN parent_student ps ON u.id=ps.parent_id
                                JOIN users s ON s.id=ps.student_id
@@ -627,19 +639,37 @@ def create_test():
                                WHERE sc.class_id=? AND u.telegram_id IS NOT NULL''',
                             (class_id,)
                         ).fetchall()
-                        if parents:
-                            from app.bot.telegram_bot import notify_new_test
-                            import asyncio
+
+                        from app.bot.telegram_bot import send_notification_sync
+                        import threading
+
+                        deadline_str = f"\n⏰ <b>Дедлайн:</b> {deadline.replace('T', ' ')}" if deadline else ""
+                        link_str = f"\n\n👉 <b>Пройти тест:</b> {test_link}"
+
+                        def _send_test_notifications():
+                            for st in students:
+                                msg = (
+                                    f"📋 <b>Новий тест / контрольна робота!</b>\n\n"
+                                    f"👤 Учень: <b>{st['full_name']}</b>\n"
+                                    f"📚 Предмет: <b>{subj_label}</b>\n"
+                                    f"📝 Тест: <b>{title}</b>"
+                                    f"{deadline_str}"
+                                    f"{link_str}"
+                                )
+                                send_notification_sync(st['telegram_id'], msg)
+
                             for p in parents:
-                                try:
-                                    asyncio.create_task(notify_new_test(
-                                        p['telegram_id'],
-                                        p['student_name'],
-                                        title,
-                                        subj_label
-                                    ))
-                                except RuntimeError:
-                                    pass
+                                msg = (
+                                    f"📋 <b>Новий тест для вашої дитини!</b>\n\n"
+                                    f"👤 Учень: <b>{p['student_name']}</b>\n"
+                                    f"📚 Предмет: <b>{subj_label}</b>\n"
+                                    f"📝 Тест: <b>{title}</b>"
+                                    f"{deadline_str}"
+                                    f"{link_str}"
+                                )
+                                send_notification_sync(p['telegram_id'], msg)
+
+                        threading.Thread(target=_send_test_notifications, daemon=True).start()
                     except Exception as _te:
                         logger.warning(f'Could not send test notification: {_te}')
 

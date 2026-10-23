@@ -6,7 +6,7 @@
     <p>Тематичні контрольні роботи, оцінювання та AI-тренажер для самопідготовки</p>
 </div>
 
-{% if current_user.role in ('teacher', 'class_teacher', 'admin', 'principal', 'vice_principal') %}
+{% if current_user.role in ('superuser', 'teacher', 'class_teacher', 'admin', 'principal', 'vice_principal') %}
     <div style="margin-bottom: 25px; display: flex; gap: 10px; flex-wrap: wrap;">
         <a href="{{ url_for('tests.create_test') }}" class="btn btn-primary" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border: none;">
             {{ icons.icon('file-check') }} Створити тест
@@ -124,6 +124,9 @@
                         <span class="badge-info">Клас: {{ t.class_name or 'Всі' }}</span>
                         <span>⏱ {{ t.time_limit_minutes }} хв.</span>
                         <span>Спроб дозволено: {{ t.max_attempts }}</span>
+                        {% if t.deadline %}
+                            <span style="color:#dc2626;font-weight:600;padding:2px 8px;background:rgba(220,38,38,0.08);border-radius:6px;">⏰ До: {{ t.deadline.replace('T', ' ') }}</span>
+                        {% endif %}
                     </p>
                 </div>
                 <div>

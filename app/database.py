@@ -290,6 +290,7 @@ def init_db():
         ('exit_count INTEGER DEFAULT 0', 'test_attempts'),
         ('image_url TEXT', 'questions'),
         ('image_urls TEXT', 'materials'),
+        ('deadline TEXT', 'tests'),
         ('guest_name TEXT', 'test_session_participants'),
         ('guest_name TEXT', 'test_attempts'),
     ]:
@@ -363,23 +364,118 @@ def init_db():
         logger.warning(f"Failed to populate subjects: {e}")
 
     try:
-        has_classes = conn.execute("SELECT 1 FROM classes LIMIT 1").fetchone()
-        if not has_classes:
-            default_classes = [
-                ('1-А', 2025), ('2-А', 2025), ('3-А', 2025), ('4-А', 2025),
-                ('5-А', 2025), ('6-А', 2025), ('7-А', 2025), ('8-А', 2025),
-                ('9-А', 2025), ('10-А', 2025), ('10-Б', 2025), ('11-А', 2025)
-            ]
-            conn.executemany("INSERT INTO classes (name, year) VALUES (?, ?)", default_classes)
+        all_classes_needed = [f"{i}-{l}" for i in range(1, 12) for l in ['А', 'Б']]
+        existing_classes = {row[0] for row in conn.execute("SELECT name FROM classes").fetchall()}
+        new_classes = [(c, 2025) for c in all_classes_needed if c not in existing_classes]
+        if new_classes:
+            conn.executemany("INSERT INTO classes (name, year) VALUES (?, ?)", new_classes)
             conn.commit()
     except Exception as e:
         logger.warning(f"Failed to populate classes: {e}")
 
     try:
-        conn.execute("UPDATE users SET telegram_id=513546547, telegram_username='medleb7', role='superuser' WHERE username='gmedvedev'")
+        subject_teachers_data = [
+            ('Українська мова', 'Мельник Ольга Петрівна', 'melnyk_o', 'teacher_melnyk@school3.uz.ua'),
+            ('Українська література', 'Коваленко Наталія Іванівна', 'kovalenko_n', 'teacher_kovalenko@school3.uz.ua'),
+            ('Зарубіжна література', 'Шевчук Олена Василівна', 'shevchuk_o', 'teacher_shevchuk@school3.uz.ua'),
+            ('Англійська мова', 'Бондар Світлана Михайлівна', 'bondar_s', 'teacher_bondar@school3.uz.ua'),
+            ('Чеська мова', 'Новак Ян Карелович', 'novak_y', 'teacher_novak@school3.uz.ua'),
+            ('Математика', 'Коваль Ірина Василівна', 'teacher1', 'teacher1@school3.uz.ua'),
+            ('Алгебра', 'Петренко Анатолій Сергійович', 'petrenko_a', 'teacher_petrenko@school3.uz.ua'),
+            ('Геометрія', 'Лисенко Тетяна Володимирівна', 'lysenko_t', 'teacher_lysenko@school3.uz.ua'),
+            ('Інформатика', 'Кравченко Дмитро Олександрович', 'kravchenko_d', 'teacher_kravchenko@school3.uz.ua'),
+            ('Історія України', 'Григоренко Віктор Павлович', 'hryhorenko_v', 'teacher_hryhorenko@school3.uz.ua'),
+            ('Всесвітня історія', 'Савченко Марина Вікторівна', 'savchenko_m', 'teacher_savchenko@school3.uz.ua'),
+            ('Громадянська освіта', 'Ткаченко Андрій Миколайович', 'tkachenko_a', 'teacher_tkachenko@school3.uz.ua'),
+            ('Правознавство', 'Мороз Юлія Сергіївна', 'moroz_y', 'teacher_moroz@school3.uz.ua'),
+            ('Фізика', 'Бойко Сергій Ярославович', 'boyko_s', 'teacher_boyko@school3.uz.ua'),
+            ('Астрономія', 'Павленко Олег Григорович', 'pavlenko_o', 'teacher_pavlenko@school3.uz.ua'),
+            ('Хімія', 'Семенюк Лариса Федорівна', 'semenyuk_l', 'teacher_semenyuk@school3.uz.ua'),
+            ('Біологія', 'Василенко Надія Романівна', 'vasylenko_n', 'teacher_vasylenko@school3.uz.ua'),
+            ('Екологія', 'Марченко Інна Борисівна', 'marchenko_i', 'teacher_marchenko@school3.uz.ua'),
+            ('Географія', 'Дудник Віталій Ігорович', 'dudnyk_v', 'teacher_dudnyk@school3.uz.ua'),
+            ('Природознавство', 'Кузьменко Оксана Тарасівна', 'kuzmenko_o', 'teacher_kuzmenko@school3.uz.ua'),
+            ('Основи здоров\'я', 'Поліщук Роман Степанович', 'polishchuk_r', 'teacher_polishchuk@school3.uz.ua'),
+            ('Мистецтво', 'Ковальчук Дарія Леонідівна', 'kovalchuk_d', 'teacher_kovalchuk@school3.uz.ua'),
+            ('Трудове навчання', 'Сидоренко Василь Миколайович', 'sydorenko_v', 'teacher_sydorenko@school3.uz.ua'),
+            ('Технології', 'Іванов Денис Артемович', 'ivanov_d', 'teacher_ivanov@school3.uz.ua'),
+            ('Захист України', 'Тарасенко Валерій Богданович', 'tarasenko_v', 'teacher_tarasenko@school3.uz.ua'),
+            ('Фізична культура', 'Захарченко Максим Ілліч', 'zakharchenko_m', 'teacher_zakharchenko@school3.uz.ua'),
+        ]
+        import bcrypt
+        default_pw = os.environ.get('DEFAULT_TEACHER_PASSWORD', 'Teacher2025!')
+        t_hash = bcrypt.hashpw(default_pw.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        for subj, full_name, username, email in subject_teachers_data:
+            user = conn.execute(
+                "SELECT id FROM users WHERE username=? OR email=?", (username, email)
+            ).fetchone()
+            if not user:
+                conn.execute(
+                    """INSERT INTO users 
+                       (username, email, password_hash, role, full_name, phone, is_approved, is_active)
+                       VALUES (?, ?, ?, 'teacher', ?, '+380312000000', 1, 1)""",
+                    (username, email, t_hash, full_name)
+                )
+                uid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            else:
+                uid = user[0]
+            
+            tp = conn.execute("SELECT 1 FROM teacher_profiles WHERE user_id=?", (uid,)).fetchone()
+            if not tp:
+                conn.execute(
+                    """INSERT INTO teacher_profiles (user_id, subject_specialty, bio, experience_years)
+                       VALUES (?, ?, ?, 10)""",
+                    (uid, subj, f"Викладач предмету «{subj}» в Ужгородському ліцеї №3.")
+                )
         conn.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to populate teachers: {e}")
+
+    try:
+        superuser_pw = os.environ.get('SUPERUSER_PASSWORD', 'Admin2025!Secure')
+        pw_hash = bcrypt.hashpw(superuser_pw.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        existing_su = conn.execute(
+            "SELECT id FROM users WHERE username IN ('medleb', 'meleb', 'gmedvedev') OR email='gmedvede226@gmail.com'"
+        ).fetchone()
+
+        if existing_su:
+            conn.execute(
+                '''UPDATE users SET 
+                    username='medleb',
+                    email='gmedvede226@gmail.com',
+                    password_hash=?,
+                    role='superuser',
+                    full_name='Гліб Медведєв',
+                    phone='+380990571770',
+                    is_approved=1,
+                    is_active=1,
+                    telegram_id=513546547,
+                    telegram_username='medleb7'
+                WHERE id=?''',
+                (pw_hash, existing_su[0])
+            )
+            su_id = existing_su[0]
+        else:
+            conn.execute(
+                '''INSERT INTO users 
+                    (username, email, password_hash, role, full_name, phone, telegram_id, telegram_username, is_approved, is_active)
+                VALUES 
+                    ('medleb', 'gmedvede226@gmail.com', ?, 'superuser', 'Гліб Медведєв', '+380990571770', 513546547, 'medleb7', 1, 1)''',
+                (pw_hash,)
+            )
+            su_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        class_11a = conn.execute("SELECT id FROM classes WHERE name='11-А'").fetchone()
+        if class_11a and su_id:
+            conn.execute(
+                "INSERT OR IGNORE INTO student_classes (student_id, class_id) VALUES (?, ?)",
+                (su_id, class_11a[0])
+            )
+        conn.commit()
+    except Exception as e:
+        logger.warning(f"Failed to ensure superuser in 11-A: {e}")
     conn.commit()
     conn.close()
     logger.info('Database initialized')
@@ -514,23 +610,118 @@ def seed_data():
     conn.executemany('INSERT INTO voting_candidates (voting_id,name,class_name,description) VALUES (?,?,?,?)', candidates)
 
     try:
-        has_classes = conn.execute("SELECT 1 FROM classes LIMIT 1").fetchone()
-        if not has_classes:
-            default_classes = [
-                ('1-А', 2025), ('2-А', 2025), ('3-А', 2025), ('4-А', 2025),
-                ('5-А', 2025), ('6-А', 2025), ('7-А', 2025), ('8-А', 2025),
-                ('9-А', 2025), ('10-А', 2025), ('10-Б', 2025), ('11-А', 2025)
-            ]
-            conn.executemany("INSERT INTO classes (name, year) VALUES (?, ?)", default_classes)
+        all_classes_needed = [f"{i}-{l}" for i in range(1, 12) for l in ['А', 'Б']]
+        existing_classes = {row[0] for row in conn.execute("SELECT name FROM classes").fetchall()}
+        new_classes = [(c, 2025) for c in all_classes_needed if c not in existing_classes]
+        if new_classes:
+            conn.executemany("INSERT INTO classes (name, year) VALUES (?, ?)", new_classes)
             conn.commit()
     except Exception as e:
         logger.warning(f"Failed to populate classes: {e}")
 
     try:
-        conn.execute("UPDATE users SET telegram_id=513546547, telegram_username='medleb7', role='superuser' WHERE username='gmedvedev'")
+        subject_teachers_data = [
+            ('Українська мова', 'Мельник Ольга Петрівна', 'melnyk_o', 'teacher_melnyk@school3.uz.ua'),
+            ('Українська література', 'Коваленко Наталія Іванівна', 'kovalenko_n', 'teacher_kovalenko@school3.uz.ua'),
+            ('Зарубіжна література', 'Шевчук Олена Василівна', 'shevchuk_o', 'teacher_shevchuk@school3.uz.ua'),
+            ('Англійська мова', 'Бондар Світлана Михайлівна', 'bondar_s', 'teacher_bondar@school3.uz.ua'),
+            ('Чеська мова', 'Новак Ян Карелович', 'novak_y', 'teacher_novak@school3.uz.ua'),
+            ('Математика', 'Коваль Ірина Василівна', 'teacher1', 'teacher1@school3.uz.ua'),
+            ('Алгебра', 'Петренко Анатолій Сергійович', 'petrenko_a', 'teacher_petrenko@school3.uz.ua'),
+            ('Геометрія', 'Лисенко Тетяна Володимирівна', 'lysenko_t', 'teacher_lysenko@school3.uz.ua'),
+            ('Інформатика', 'Кравченко Дмитро Олександрович', 'kravchenko_d', 'teacher_kravchenko@school3.uz.ua'),
+            ('Історія України', 'Григоренко Віктор Павлович', 'hryhorenko_v', 'teacher_hryhorenko@school3.uz.ua'),
+            ('Всесвітня історія', 'Савченко Марина Вікторівна', 'savchenko_m', 'teacher_savchenko@school3.uz.ua'),
+            ('Громадянська освіта', 'Ткаченко Андрій Миколайович', 'tkachenko_a', 'teacher_tkachenko@school3.uz.ua'),
+            ('Правознавство', 'Мороз Юлія Сергіївна', 'moroz_y', 'teacher_moroz@school3.uz.ua'),
+            ('Фізика', 'Бойко Сергій Ярославович', 'boyko_s', 'teacher_boyko@school3.uz.ua'),
+            ('Астрономія', 'Павленко Олег Григорович', 'pavlenko_o', 'teacher_pavlenko@school3.uz.ua'),
+            ('Хімія', 'Семенюк Лариса Федорівна', 'semenyuk_l', 'teacher_semenyuk@school3.uz.ua'),
+            ('Біологія', 'Василенко Надія Романівна', 'vasylenko_n', 'teacher_vasylenko@school3.uz.ua'),
+            ('Екологія', 'Марченко Інна Борисівна', 'marchenko_i', 'teacher_marchenko@school3.uz.ua'),
+            ('Географія', 'Дудник Віталій Ігорович', 'dudnyk_v', 'teacher_dudnyk@school3.uz.ua'),
+            ('Природознавство', 'Кузьменко Оксана Тарасівна', 'kuzmenko_o', 'teacher_kuzmenko@school3.uz.ua'),
+            ('Основи здоров\'я', 'Поліщук Роман Степанович', 'polishchuk_r', 'teacher_polishchuk@school3.uz.ua'),
+            ('Мистецтво', 'Ковальчук Дарія Леонідівна', 'kovalchuk_d', 'teacher_kovalchuk@school3.uz.ua'),
+            ('Трудове навчання', 'Сидоренко Василь Миколайович', 'sydorenko_v', 'teacher_sydorenko@school3.uz.ua'),
+            ('Технології', 'Іванов Денис Артемович', 'ivanov_d', 'teacher_ivanov@school3.uz.ua'),
+            ('Захист України', 'Тарасенко Валерій Богданович', 'tarasenko_v', 'teacher_tarasenko@school3.uz.ua'),
+            ('Фізична культура', 'Захарченко Максим Ілліч', 'zakharchenko_m', 'teacher_zakharchenko@school3.uz.ua'),
+        ]
+        import bcrypt
+        default_pw = os.environ.get('DEFAULT_TEACHER_PASSWORD', 'Teacher2025!')
+        t_hash = bcrypt.hashpw(default_pw.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        for subj, full_name, username, email in subject_teachers_data:
+            user = conn.execute(
+                "SELECT id FROM users WHERE username=? OR email=?", (username, email)
+            ).fetchone()
+            if not user:
+                conn.execute(
+                    """INSERT INTO users 
+                       (username, email, password_hash, role, full_name, phone, is_approved, is_active)
+                       VALUES (?, ?, ?, 'teacher', ?, '+380312000000', 1, 1)""",
+                    (username, email, t_hash, full_name)
+                )
+                uid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            else:
+                uid = user[0]
+            
+            tp = conn.execute("SELECT 1 FROM teacher_profiles WHERE user_id=?", (uid,)).fetchone()
+            if not tp:
+                conn.execute(
+                    """INSERT INTO teacher_profiles (user_id, subject_specialty, bio, experience_years)
+                       VALUES (?, ?, ?, 10)""",
+                    (uid, subj, f"Викладач предмету «{subj}» в Ужгородському ліцеї №3.")
+                )
         conn.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to populate teachers: {e}")
+
+    try:
+        superuser_pw = os.environ.get('SUPERUSER_PASSWORD', 'Admin2025!Secure')
+        pw_hash = bcrypt.hashpw(superuser_pw.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        existing_su = conn.execute(
+            "SELECT id FROM users WHERE username IN ('medleb', 'meleb', 'gmedvedev') OR email='gmedvede226@gmail.com'"
+        ).fetchone()
+
+        if existing_su:
+            conn.execute(
+                '''UPDATE users SET 
+                    username='medleb',
+                    email='gmedvede226@gmail.com',
+                    password_hash=?,
+                    role='superuser',
+                    full_name='Гліб Медведєв',
+                    phone='+380990571770',
+                    is_approved=1,
+                    is_active=1,
+                    telegram_id=513546547,
+                    telegram_username='medleb7'
+                WHERE id=?''',
+                (pw_hash, existing_su[0])
+            )
+            su_id = existing_su[0]
+        else:
+            conn.execute(
+                '''INSERT INTO users 
+                    (username, email, password_hash, role, full_name, phone, telegram_id, telegram_username, is_approved, is_active)
+                VALUES 
+                    ('medleb', 'gmedvede226@gmail.com', ?, 'superuser', 'Гліб Медведєв', '+380990571770', 513546547, 'medleb7', 1, 1)''',
+                (pw_hash,)
+            )
+            su_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        class_11a = conn.execute("SELECT id FROM classes WHERE name='11-А'").fetchone()
+        if class_11a and su_id:
+            conn.execute(
+                "INSERT OR IGNORE INTO student_classes (student_id, class_id) VALUES (?, ?)",
+                (su_id, class_11a[0])
+            )
+        conn.commit()
+    except Exception as e:
+        logger.warning(f"Failed to ensure superuser in 11-A: {e}")
     conn.commit()
     conn.close()
     logger.info('Sample data seeded successfully')

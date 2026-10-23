@@ -86,14 +86,38 @@ async def send_2fa_code(telegram_id: int, code: str):
             logger.warning(f"Could not send 2FA code to {telegram_id}: {e}")
 
 
+def send_notification_sync(telegram_id: int, message: str):
+    """Синхронна надійна відправка повідомлення в Telegram через requests/urllib."""
+    token = os.environ.get('BOT_TOKEN', '').strip()
+    if not token or not telegram_id:
+        return False
+    try:
+        import urllib.request
+        import urllib.parse
+        import json
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = json.dumps({
+            'chat_id': telegram_id,
+            'text': message,
+            'parse_mode': 'HTML',
+            'disable_web_page_preview': False
+        }).encode('utf-8')
+        req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status == 200
+    except Exception as e:
+        logger.warning(f"Could not send sync tg notification to {telegram_id}: {e}")
+        return False
+
 async def send_notification(telegram_id: int, message: str):
-    """Відправити довільне сповіщення (HTML)."""
-    bot = get_bot()
-    if bot:
-        try:
-            await bot.send_message(telegram_id, message, parse_mode='HTML')
-        except Exception as e:
-            logger.warning(f'Could not send notification to {telegram_id}: {e}')
+    """Відправити довільне сповіщення (HTML) з автоматичним синхронним fallback."""
+    # Спочатку пробуємо синхронно у фоновому потоці або через bot
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, send_notification_sync, telegram_id, message)
+    except Exception:
+        return send_notification_sync(telegram_id, message)
 
 
 async def send_lunch_qr(telegram_id: int, qr_bytes: bytes,
@@ -134,16 +158,18 @@ async def notify_absence(parent_telegram_id: int, student_name: str,
 
 
 async def notify_new_test(telegram_id: int, student_name: str,
-                          test_title: str, subject: str, deadline: str = ''):
-    """Сповіщення про новий тест/контрольну."""
-    deadline_line = f"\nТермін: {deadline}" if deadline else ""
+                          test_title: str, subject: str, deadline: str = '', test_url: str = ''):
+    """Сповіщення про новий тест/контрольну з дедлайном та прямим лінком."""
+    deadline_line = f"\n⏰ <b>Дедлайн:</b> {deadline.replace('T', ' ')}" if deadline else ""
+    link_line = f"\n\n👉 <b>Пройти тест:</b> {test_url}" if test_url else "\n\n🌐 Пройти тест — на сайті ліцею."
     await send_notification(
         telegram_id,
-        f"📋 <b>Новий тест / контрольна</b>\n\n"
-        f"Учень: <b>{student_name}</b>\n"
-        f"Предмет: {subject}\n"
-        f"Назва: {test_title}{deadline_line}\n\n"
-        f"🌐 Пройти тест — на сайті ліцею."
+        f"📋 <b>Новий тест / контрольна робота!</b>\n\n"
+        f"👤 Учень: <b>{student_name}</b>\n"
+        f"📚 Предмет: <b>{subject}</b>\n"
+        f"📝 Тест: <b>{test_title}</b>"
+        f"{deadline_line}"
+        f"{link_line}"
     )
 
 
@@ -741,12 +767,79 @@ async def run_bot():
             )
 
     # ── Запуск polling ────────────────────────────────────────────────────────
+
+async def _deadline_reminder_worker(bot: Bot):
+    """Періодично перевіряє активні тести та надсилає нагадування учням за 24 год та за 2 год до дедлайну."""
+    while True:
+        try:
+            await asyncio.sleep(60)  # check every minute
+            conn = get_db_conn()
+            now_dt = datetime.now()
+            now_str = now_dt.strftime('%Y-%m-%dT%H:%M')
+            
+            # Select tests with deadline in future that have not expired
+            tests = conn.execute(
+                """SELECT t.id, t.title, t.deadline, t.class_id, s.name as subject_name
+                   FROM tests t
+                   LEFT JOIN subjects s ON s.id = t.subject_id
+                   WHERE t.is_active=1 AND t.deadline IS NOT NULL AND t.deadline != ''"""
+            ).fetchall()
+
+            for t in tests:
+                try:
+                    d_clean = t['deadline'].replace(' ', 'T')[:16]
+                    d_dt = datetime.strptime(d_clean, '%Y-%m-%dT%H:%M')
+                except Exception:
+                    continue
+
+                diff_seconds = (d_dt - now_dt).total_seconds()
+                if diff_seconds <= 0:
+                    continue
+
+                # Remind within [23h50m .. 24h00m] or [1h50m .. 2h00m]
+                is_24h = (82800 <= diff_seconds <= 86400)
+                is_2h = (6600 <= diff_seconds <= 7200)
+
+                if is_24h or is_2h:
+                    rem_label = "залишилось менше 24 годин" if is_24h else "залишилось лише 2 години!"
+                    # Find students in this class who have not finished the test
+                    students = conn.execute(
+                        """SELECT u.telegram_id, u.full_name
+                           FROM users u
+                           JOIN student_classes sc ON sc.student_id = u.id
+                           WHERE sc.class_id = ? AND u.telegram_id IS NOT NULL
+                             AND u.id NOT IN (
+                                 SELECT student_id FROM test_attempts WHERE test_id = ? AND status = 'finished'
+                             )""",
+                        (t['class_id'], t['id'])
+                    ).fetchall()
+
+                    for st in students:
+                        msg = (
+                            f"⏰ <b>Нагадування про тест!</b>\n\n"
+                            f"Привіт, <b>{st['full_name']}</b>! Нагадуємо зробити тест: <b>«{t['title']}»</b> ({t['subject_name']}).\n\n"
+                            f"⏳ <b>До завершення:</b> {rem_label}\n"
+                            f"Дедлайн: <b>{d_clean.replace('T', ' ')}</b>\n\n"
+                            f"Не зволікай, заходь на сайт і проходь тестування!"
+                        )
+                        try:
+                            await send_notification(st['telegram_id'], msg)
+                        except Exception:
+                            pass
+            conn.close()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.warning(f"Deadline reminder loop error: {e}")
+
     logger.info('Telegram bot starting...')
     try:
         await bot.delete_webhook(drop_pending_updates=True)
     except Exception as _e:
         logger.debug(f'delete_webhook skipped: {_e}')
+    reminder_task = asyncio.create_task(_deadline_reminder_worker(bot))
     try:
         await dp.start_polling(bot, handle_signals=False)
     finally:
+        reminder_task.cancel()
         _release_lock()

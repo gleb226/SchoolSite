@@ -56,7 +56,7 @@ def _get_session_or_404(db, session_id: int):
 
 
 def _teacher_owns_session(user, sess: dict) -> bool:
-    if user['role'] in ('admin', 'principal', 'vice_principal'):
+    if user['role'] in ('superuser', 'admin', 'principal', 'vice_principal'):
         return True
     return user['role'] == 'teacher' and int(sess['teacher_id']) == int(user['id'])
 
