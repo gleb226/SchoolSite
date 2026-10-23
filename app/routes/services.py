@@ -44,33 +44,34 @@ def gpd_index():
     db = get_db()
 
     children = []
+    children = []
     if user['role'] == 'parent':
-        children = db.execute(
+        children = db.execute("""
             SELECT u.id, u.full_name, c.name as class_name
             FROM users u
             JOIN parent_student ps ON ps.student_id = u.id
             LEFT JOIN student_classes sc ON sc.student_id = u.id
             LEFT JOIN classes c ON c.id = sc.class_id
             WHERE ps.parent_id = ?
-        , (user['id'],)).fetchall()
-    if not children and user['role'] in ('superuser', 'admin', 'principal'):
-        children = db.execute(
-            SELECT u.id, u.full_name, c.name as class_name
-            FROM users u
-            LEFT JOIN student_classes sc ON sc.student_id = u.id
-            LEFT JOIN classes c ON c.id = sc.class_id
-            WHERE u.role = 'student' AND u.is_approved = 1
-            ORDER BY c.name, u.full_name LIMIT 30
-        ).fetchall()
-        children = db.execute('''
+        """, (user['id'],)).fetchall()
+    elif user['role'] in ('superuser', 'admin', 'principal'):
+        children = db.execute("""
             SELECT u.id, u.full_name, c.name as class_name
             FROM users u
             JOIN parent_student ps ON ps.student_id = u.id
             LEFT JOIN student_classes sc ON sc.student_id = u.id
             LEFT JOIN classes c ON c.id = sc.class_id
             WHERE ps.parent_id = ?
-        ''', (user['id'],)).fetchall()
-
+        """, (user['id'],)).fetchall()
+        if not children:
+            children = db.execute("""
+                SELECT u.id, u.full_name, c.name as class_name
+                FROM users u
+                LEFT JOIN student_classes sc ON sc.student_id = u.id
+                LEFT JOIN classes c ON c.id = sc.class_id
+                WHERE u.role = 'student' AND u.is_approved = 1
+                ORDER BY c.name, u.full_name LIMIT 30
+            """).fetchall()
     today_str = datetime.now().strftime('%Y-%m-%d')
     # Pickups for today
     if user['role'] in ('teacher', 'admin', 'principal', 'superuser', 'vice_principal'):
@@ -238,33 +239,34 @@ def certificates_index():
         ''', (user['id'],)).fetchall()
 
     children = []
+    children = []
     if user['role'] == 'parent':
-        children = db.execute(
+        children = db.execute("""
             SELECT u.id, u.full_name, c.name as class_name
             FROM users u
             JOIN parent_student ps ON ps.student_id = u.id
             LEFT JOIN student_classes sc ON sc.student_id = u.id
             LEFT JOIN classes c ON c.id = sc.class_id
             WHERE ps.parent_id = ?
-        , (user['id'],)).fetchall()
-    if not children and user['role'] in ('superuser', 'admin', 'principal'):
-        children = db.execute(
-            SELECT u.id, u.full_name, c.name as class_name
-            FROM users u
-            LEFT JOIN student_classes sc ON sc.student_id = u.id
-            LEFT JOIN classes c ON c.id = sc.class_id
-            WHERE u.role = 'student' AND u.is_approved = 1
-            ORDER BY c.name, u.full_name LIMIT 30
-        ).fetchall()
-        children = db.execute('''
+        """, (user['id'],)).fetchall()
+    elif user['role'] in ('superuser', 'admin', 'principal'):
+        children = db.execute("""
             SELECT u.id, u.full_name, c.name as class_name
             FROM users u
             JOIN parent_student ps ON ps.student_id = u.id
             LEFT JOIN student_classes sc ON sc.student_id = u.id
             LEFT JOIN classes c ON c.id = sc.class_id
             WHERE ps.parent_id = ?
-        ''', (user['id'],)).fetchall()
-
+        """, (user['id'],)).fetchall()
+        if not children:
+            children = db.execute("""
+                SELECT u.id, u.full_name, c.name as class_name
+                FROM users u
+                LEFT JOIN student_classes sc ON sc.student_id = u.id
+                LEFT JOIN classes c ON c.id = sc.class_id
+                WHERE u.role = 'student' AND u.is_approved = 1
+                ORDER BY c.name, u.full_name LIMIT 30
+            """).fetchall()
     return render_template(
         'services/certificates.html',
         requests=requests_list,
