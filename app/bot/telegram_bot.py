@@ -294,11 +294,22 @@ async def run_bot():
     import atexit
     lock_path = os.path.join(tempfile.gettempdir(), f'schoolsite_bot_{token[:8]}.lock')
 
+    import time as _time
+    if os.path.exists(lock_path):
+        try:
+            # Якщо lock-файл старіший за 15 секунд або процес перезапущено — видаляємо його
+            mtime = os.path.getmtime(lock_path)
+            if _time.time() - mtime > 15:
+                os.remove(lock_path)
+        except Exception:
+            pass
+
     try:
-        lock_fd = open(lock_path, 'x')
-    except FileExistsError:
-        logger.warning('Bot lock file exists — skipping to avoid TelegramConflictError.')
-        return
+        lock_fd = open(lock_path, 'w')
+        lock_fd.write(str(os.getpid()))
+        lock_fd.flush()
+    except Exception as _le:
+        logger.warning(f'Could not acquire bot lock: {_le}')
 
     def _release_lock():
         try:
