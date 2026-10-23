@@ -1,4 +1,4 @@
-﻿from flask import Blueprint, render_template, request, redirect, url_for, g, abort
+from flask import Blueprint, render_template, request, redirect, url_for, g, abort
 from app.auth import login_required, approved_required, role_required
 from app.database import get_db
 from app.security import generate_csrf_token, validate_csrf, sanitize_input

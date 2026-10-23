@@ -363,6 +363,19 @@ def init_db():
         logger.warning(f"Failed to populate subjects: {e}")
 
     try:
+        has_classes = conn.execute("SELECT 1 FROM classes LIMIT 1").fetchone()
+        if not has_classes:
+            default_classes = [
+                ('1-А', 2025), ('2-А', 2025), ('3-А', 2025), ('4-А', 2025),
+                ('5-А', 2025), ('6-А', 2025), ('7-А', 2025), ('8-А', 2025),
+                ('9-А', 2025), ('10-А', 2025), ('10-Б', 2025), ('11-А', 2025)
+            ]
+            conn.executemany("INSERT INTO classes (name, year) VALUES (?, ?)", default_classes)
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"Failed to populate classes: {e}")
+
+    try:
         conn.execute("UPDATE users SET telegram_id=513546547, telegram_username='medleb7', role='superuser' WHERE username='gmedvedev'")
         conn.commit()
     except Exception:
@@ -499,6 +512,19 @@ def seed_data():
         (1, 'Бондаренко Тарас', '10-Б', 'Разом ми зробимо наш ліцей кращим!'),
     ]
     conn.executemany('INSERT INTO voting_candidates (voting_id,name,class_name,description) VALUES (?,?,?,?)', candidates)
+
+    try:
+        has_classes = conn.execute("SELECT 1 FROM classes LIMIT 1").fetchone()
+        if not has_classes:
+            default_classes = [
+                ('1-А', 2025), ('2-А', 2025), ('3-А', 2025), ('4-А', 2025),
+                ('5-А', 2025), ('6-А', 2025), ('7-А', 2025), ('8-А', 2025),
+                ('9-А', 2025), ('10-А', 2025), ('10-Б', 2025), ('11-А', 2025)
+            ]
+            conn.executemany("INSERT INTO classes (name, year) VALUES (?, ?)", default_classes)
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"Failed to populate classes: {e}")
 
     try:
         conn.execute("UPDATE users SET telegram_id=513546547, telegram_username='medleb7', role='superuser' WHERE username='gmedvedev'")

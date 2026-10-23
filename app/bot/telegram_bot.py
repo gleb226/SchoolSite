@@ -747,6 +747,6 @@ async def run_bot():
     except Exception as _e:
         logger.debug(f'delete_webhook skipped: {_e}')
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, handle_signals=False)
     finally:
         _release_lock()

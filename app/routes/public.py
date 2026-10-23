@@ -1,4 +1,4 @@
-﻿from flask import Blueprint, render_template, abort
+from flask import Blueprint, render_template, abort
 from app.models import NewsModel
 from app.database import get_db
 
