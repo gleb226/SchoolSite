@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Створення Superuser — Ліцей №3{% endblock %}
+{% block content %}
+<div style="max-width:460px;margin:60px auto;padding:0 15px;">
+    <div class="card" style="padding:32px;">
+        <div style="text-align:center;margin-bottom:24px;">
+            <div style="font-size:48px;margin-bottom:8px;">⚡</div>
+            <h1 style="font-size:20px;font-weight:800;margin:0 0 6px 0;">Створення Superuser</h1>
+            <p style="color:var(--text-muted);font-size:13px;margin:0;">
+                Акаунт з повним доступом до всіх функцій системи.<br>
+                Може бути тільки один.
+            </p>
+        </div>
+
+        {% if success %}
+        <div style="background:#d1fae5;border:1px solid #a7f3d0;border-radius:8px;padding:14px;margin-bottom:16px;color:#065f46;font-weight:600;">
+            ✅ {{ success }}
+            <div style="margin-top:10px;">
+                <a href="{{ url_for('auth.login') }}" class="btn btn-primary" style="width:100%;display:block;text-align:center;">
+                    Увійти →
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px;margin-bottom:16px;color:#991b1b;">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if not success %}
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            {% if setup_token_required %}
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px;">
+                    🔑 Код розробника (DEV_SETUP_TOKEN)
+                </label>
+                <input type="password" name="setup_token" required
+                       style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-main);">
+            </div>
+            {% endif %}
+
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px;">ПІБ</label>
+                <input type="text" name="full_name" required placeholder="Прізвище Ім'я По батькові"
+                       style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-main);">
+            </div>
+
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px;">Логін</label>
+                <input type="text" name="username" required placeholder="dev або superuser"
+                       style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-main);">
+            </div>
+
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px;">Email</label>
+                <input type="email" name="email" required
+                       style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-main);">
+            </div>
+
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px;">Телефон (необов'язково)</label>
+                <input type="text" name="phone" placeholder="+38..."
+                       style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-main);">
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px;">Пароль (мін. 8 символів)</label>
+                <input type="password" name="password" required minlength="8"
+                       style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-main);">
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px;font-weight:600;">
+                ⚡ Створити Superuser
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

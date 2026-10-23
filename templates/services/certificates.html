@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Електронні довідки — Ужгородський ліцей №3{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 950px; padding: 25px 15px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="font-size: 24px; font-weight: 700; margin: 0 0 6px 0;">📑 Електронні довідки від школи</h1>
+            <p style="color: var(--text-muted); margin: 0; font-size: 14px;">Замовляйте офіційні довідки ліцею онлайн без черг та очікувань</p>
+        </div>
+        <div>
+            <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline btn-sm">← До кабінету</a>
+        </div>
+    </div>
+
+    <!-- Форма замовлення довідки (для учнів та батьків) -->
+    <div class="card" style="margin-bottom: 25px; border-left: 4px solid var(--primary); padding: 20px;">
+        <h2 style="font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 15px;">
+            📝 Замовити нову довідку
+        </h2>
+
+        <form method="POST" action="{{ url_for('services.certificate_create') }}">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                <div>
+                    <label for="cert_type" style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px;">Тип довідки:</label>
+                    <select id="cert_type" name="cert_type" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+                        {% for k, v in cert_types.items() %}
+                        <option value="{{ k }}">{{ v }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if current_user.role == 'parent' and children %}
+                <div>
+                    <label for="student_select" style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px;">Учень (дитина):</label>
+                    <select id="student_select" name="student_name" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+                        {% for c in children %}
+                        <option value="{{ c.full_name }}">{{ c.full_name }} ({{ c.class_name or 'клас не вказано' }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% elif current_user.role != 'student' %}
+                <div>
+                    <label for="student_name" style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px;">ПІБ учня:</label>
+                    <input type="text" id="student_name" name="student_name" placeholder="Шевченко Тарас Григорович" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+                </div>
+                <div>
+                    <label for="class_name" style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px;">Клас:</label>
+                    <input type="text" id="class_name" name="class_name" placeholder="наприклад, 9-А" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+                </div>
+                {% endif %}
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label for="purpose" style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px;">Куди подається / мета отримання (необов'язково):</label>
+                <input type="text" id="purpose" name="purpose" placeholder="Наприклад: За місцем вимоги / Для подання у ЦНАП / До військкомату" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border);">
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="padding: 10px 22px; font-weight: 600;">
+                ✉️ Подати заяву на довідку
+            </button>
+        </form>
+    </div>
+
+    <!-- Список заяв та виданих довідок -->
+    <div class="card" style="padding: 20px;">
+        <h2 style="font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 15px;">
+            {% if is_staff %}📋 Усі заяви на довідки{% else %}📑 Мої довідки та заяви{% endif %}
+        </h2>
+
+        {% if requests %}
+        <div class="table-responsive">
+            <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th style="padding: 10px 12px; text-align: left;">Дата</th>
+                        <th style="padding: 10px 12px; text-align: left;">Учень</th>
+                        <th style="padding: 10px 12px; text-align: left;">Тип довідки</th>
+                        <th style="padding: 10px 12px; text-align: left;">Номер</th>
+                        <th style="padding: 10px 12px; text-align: left;">Статус</th>
+                        <th style="padding: 10px 12px; text-align: center;">Дія</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in requests %}
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 12px; font-size: 13px;">{{ r.created_at[:10] if r.created_at else '' }}</td>
+                        <td style="padding: 12px;">
+                            <strong>{{ r.student_name }}</strong>
+                            {% if r.class_name %}<br><small style="color: var(--text-muted);">{{ r.class_name }}</small>{% endif %}
+                        </td>
+                        <td style="padding: 12px; font-size: 13px;">{{ cert_types.get(r.cert_type, r.cert_type) }}</td>
+                        <td style="padding: 12px; font-weight: 600; font-size: 13px;">{{ r.cert_number or '—' }}</td>
+                        <td style="padding: 12px;">
+                            {% if r.status == 'approved' %}
+                            <span class="badge" style="background: #10b981; color: #fff; padding: 4px 10px; border-radius: 20px; font-size: 12px;">Готова</span>
+                            {% elif r.status == 'rejected' %}
+                            <span class="badge" style="background: #ef4444; color: #fff; padding: 4px 10px; border-radius: 20px; font-size: 12px;">Відхилено</span>
+                            {% else %}
+                            <span class="badge" style="background: #f59e0b; color: #fff; padding: 4px 10px; border-radius: 20px; font-size: 12px;">На розгляді</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 12px; text-align: center; white-space: nowrap;">
+                            {% if r.status == 'approved' %}
+                            <a href="{{ url_for('services.certificate_view', cert_id=r.id) }}" target="_blank" class="btn btn-sm btn-outline" style="font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                                🖨️ Відкрити / Друк
+                            </a>
+                            {% elif is_staff and r.status == 'pending' %}
+                            <form method="POST" action="{{ url_for('services.certificate_action', cert_id=r.id) }}" style="display: inline-flex; gap: 6px;">
+                                <button type="submit" name="action" value="approve" class="btn btn-sm btn-success" style="font-size: 12px;">
+                                    ✓ Схвалити
+                                </button>
+                                <button type="submit" name="action" value="reject" class="btn btn-sm btn-outline" style="font-size: 12px; color: #ef4444;">
+                                    ✕
+                                </button>
+                            </form>
+                            {% else %}
+                            <span style="color: var(--text-muted); font-size: 12px;">Очікує</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-muted); text-align: center; padding: 25px 0; margin: 0;">Заяв на довідки поки немає.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

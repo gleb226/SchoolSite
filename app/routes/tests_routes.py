@@ -182,9 +182,39 @@ def take_test(test_id):
     if not is_guest and not is_staff_preview and not _student_can_access_test(db, user, test):
         abort(403)
 
-    # For guests: create a lightweight pseudo-attempt (no student_id row in DB)
-    # Render take.html with guest_name; answers won't be graded/stored
+    # For guests: create or resume attempt linked to active session
     if is_guest:
+        guest_session_id = flask_session.get('guest_session_id')
+        attempt = None
+        if guest_session_id:
+            part = db.execute(
+                'SELECT * FROM test_session_participants WHERE session_id=? AND guest_name=?',
+                (guest_session_id, guest_name)
+            ).fetchone()
+            if part and part['attempt_id']:
+                attempt = db.execute(
+                    'SELECT * FROM test_attempts WHERE id=? AND status="in_progress"',
+                    (part['attempt_id'],)
+                ).fetchone()
+
+        if not attempt:
+            # Create attempt for guest
+            cur = db.execute(
+                """INSERT INTO test_attempts
+                   (test_id, student_id, guest_name, status, started_at)
+                   VALUES (?, NULL, ?, 'in_progress', CURRENT_TIMESTAMP)""",
+                (test_id, guest_name)
+            )
+            attempt_id = cur.lastrowid
+            if guest_session_id:
+                db.execute(
+                    'UPDATE test_session_participants SET attempt_id=? WHERE session_id=? AND guest_name=?',
+                    (attempt_id, guest_session_id, guest_name)
+                )
+            db.commit()
+            attempt = db.execute('SELECT * FROM test_attempts WHERE id=?', (attempt_id,)).fetchone()
+
+        attempt = dict(attempt)
         questions = db.execute(
             'SELECT * FROM questions WHERE test_id=? ORDER BY order_num', (test_id,)
         ).fetchall()
@@ -193,13 +223,20 @@ def take_test(test_id):
             if q['question_type'] in ('single', 'multiple'):
                 opts = db.execute('SELECT id, option_text FROM answer_options WHERE question_id=?', (q['id'],)).fetchall()
                 q['options'] = [dict(o) for o in opts]
-                random.shuffle(q['options'])
+                if test.get('shuffle_options'):
+                    random.shuffle(q['options'])
             else:
                 q['options'] = []
-        random.shuffle(questions_data)
+
+        if test.get('shuffle_questions') and not attempt.get('question_order'):
+            random.shuffle(questions_data)
+            q_ids = [q['id'] for q in questions_data]
+            db.execute('UPDATE test_attempts SET question_order=? WHERE id=?', (json.dumps(q_ids), attempt['id']))
+            db.commit()
+            attempt['question_order'] = json.dumps(q_ids)
+
         return render_template('tests/take.html', test=test, questions=questions_data,
-                               attempt={'id': 0, 'question_order': None, 'variant_number': None},
-                               is_staff_preview=False, guest_name=guest_name)
+                               attempt=attempt, is_staff_preview=False, guest_name=guest_name)
 
     if not is_staff_preview:
         # Check attempts — students only.
@@ -449,6 +486,8 @@ def create_test():
             topic = sanitize_input(request.form.get('topic', ''), 200)
             shuffle_questions = 1 if request.form.get('shuffle_questions') else 0
             shuffle_options = 1 if request.form.get('shuffle_options') else 0
+            # action was removed, using is_published checkbox
+            is_active_val = 1 if request.form.get('is_published') else 0
 
             # Multi-variant data sent as hidden JSON field by JS
             variants_json = request.form.get('variants_data_json', '')
@@ -469,9 +508,9 @@ def create_test():
                     db.execute(
                         'INSERT INTO tests (title,description,teacher_id,class_id,subject_id,'
                         'time_limit_minutes,max_attempts,is_active,is_practice,topic,'
-                        'shuffle_questions,shuffle_options,variant_group_id) VALUES (?,?,?,?,?,?,?,1,0,?,?,?,?)',
+                        'shuffle_questions,shuffle_options,variant_group_id) VALUES (?,?,?,?,?,?,?,?,0,?,?,?,?)',
                         (test_title, description, user['id'], class_id, subject_id,
-                         time_limit, max_attempts, topic,
+                         time_limit, max_attempts, is_active_val, topic,
                          shuffle_questions, shuffle_options, variant_group_id_val)
                     )
                     db.commit()
@@ -537,9 +576,9 @@ def create_test():
                 db.execute(
                     'INSERT INTO tests (title,description,teacher_id,class_id,subject_id,'
                     'time_limit_minutes,max_attempts,is_active,is_practice,topic,'
-                    'shuffle_questions,shuffle_options) VALUES (?,?,?,?,?,?,?,1,0,?,?,?)',
+                    'shuffle_questions,shuffle_options) VALUES (?,?,?,?,?,?,?,?,0,?,?,?)',
                     (title, description, user['id'], class_id, subject_id,
-                     time_limit, max_attempts, topic, shuffle_questions, shuffle_options)
+                     time_limit, max_attempts, is_active_val, topic, shuffle_questions, shuffle_options)
                 )
                 db.commit()
                 test_id = db.execute('SELECT last_insert_rowid() as id').fetchone()['id']
@@ -573,6 +612,37 @@ def create_test():
                                        (q_id, opt_text, 1 if is_correct else 0))
                         db.commit()
 
+                # Notify parents of students in the class when test is published
+                if is_active_val and class_id:
+                    try:
+                        subj_name = db.execute('SELECT name FROM subjects WHERE id=?', (subject_id,)).fetchone()
+                        subj_label = subj_name['name'] if subj_name else ''
+                        parents = db.execute(
+                            '''SELECT DISTINCT u.telegram_id, u.id as parent_id,
+                                      s.full_name as student_name
+                               FROM users u
+                               JOIN parent_student ps ON u.id=ps.parent_id
+                               JOIN users s ON s.id=ps.student_id
+                               JOIN student_classes sc ON sc.student_id=s.id
+                               WHERE sc.class_id=? AND u.telegram_id IS NOT NULL''',
+                            (class_id,)
+                        ).fetchall()
+                        if parents:
+                            from app.bot.telegram_bot import notify_new_test
+                            import asyncio
+                            for p in parents:
+                                try:
+                                    asyncio.create_task(notify_new_test(
+                                        p['telegram_id'],
+                                        p['student_name'],
+                                        title,
+                                        subj_label
+                                    ))
+                                except RuntimeError:
+                                    pass
+                    except Exception as _te:
+                        logger.warning(f'Could not send test notification: {_te}')
+
                 return redirect(url_for('tests.list_tests'))
 
     classes = [dict(r) for r in db.execute('SELECT * FROM classes ORDER BY name').fetchall()]
@@ -590,12 +660,27 @@ def ai_generate():
     subject = sanitize_input(data.get('subject', 'Математика'), 100)
     topic = sanitize_input(data.get('topic', ''), 200)
     class_name = sanitize_input(data.get('class_name', ''), 50)
-    count = data.get('question_count', 5)
+    question_count_raw = int(data.get('question_count', 5) or 5)
+    count = max(1, min(100, question_count_raw))
     difficulty = sanitize_input(data.get('difficulty', 'середній'), 50)
     question_mode = sanitize_input(data.get('question_mode', 'mixed'), 50)
     num_variants = max(1, min(30, int(data.get('num_variants', 1) or 1)))
     variant_type = sanitize_input(data.get('variant_type', 'shuffle'), 20)
-    generate_images = bool(data.get('generate_images', False))
+    generate_images  = bool(data.get('generate_images', False))
+    user_max_images = int(data.get('max_images', 3) or 3)
+    
+    # Розумний ліміт зображень для тесту:
+    # Не генерувати на кожне питання (це спалює ліміти і триває занадто довго).
+    # Для 5-10 питань: 1-2 фото; для 11-25 питань: 2-4 фото; для 25+ питань: максимум 4-5 фото.
+    if count <= 7:
+        smart_img_limit = 1
+    elif count <= 15:
+        smart_img_limit = 2
+    elif count <= 25:
+        smart_img_limit = 3
+    else:
+        smart_img_limit = 4
+    max_images = min(user_max_images, smart_img_limit)
     # shuffle and numbers are always on — these flags kept for compatibility
     shuffle_questions = True
     shuffle_options = True
@@ -626,7 +711,10 @@ def ai_generate():
         # Single variant — return data, form handles saving
         if num_variants <= 1:
             if generate_images:
-                enrich_questions_with_images(generated['questions'], subject, max_images=5)
+                try:
+                    enrich_questions_with_images(generated['questions'], subject, max_images=max_images)
+                except Exception as img_err:
+                    logger.warning(f"Image enrichment skipped: {img_err}")
             return jsonify({'success': True, 'data': generated})
 
         # Multi-variant: generate all variants now, return for editor + hidden field on save
@@ -659,13 +747,16 @@ def ai_generate():
             variants_data = [generated] * num_variants
 
         if generate_images:
-            # Enrich only the first variant (images are the same for all variants)
-            enrich_questions_with_images(variants_data[0]['questions'], subject, max_images=5)
-            # Sync images to other variants that share the same question list ref
-            for vd in variants_data[1:]:
-                for i, q in enumerate(vd.get('questions', [])):
-                    if i < len(variants_data[0]['questions']):
-                        q['image_url'] = variants_data[0]['questions'][i].get('image_url')
+            try:
+                # Enrich only the first variant (images are the same for all variants)
+                enrich_questions_with_images(variants_data[0]['questions'], subject, max_images=max_images)
+                # Sync images to other variants that share the same question list ref
+                for vd in variants_data[1:]:
+                    for i, q in enumerate(vd.get('questions', [])):
+                        if i < len(variants_data[0]['questions']):
+                            q['image_url'] = variants_data[0]['questions'][i].get('image_url')
+            except Exception as img_err:
+                logger.warning(f"Multi-variant image enrichment skipped: {img_err}")
 
         return jsonify({
             'success': True,

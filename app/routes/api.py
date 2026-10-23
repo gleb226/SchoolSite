@@ -122,9 +122,9 @@ def get_students_by_class(class_id):
 
 
 @api_bp.route('/test/<int:test_id>/cheat-event', methods=['POST'])
-@login_required
 def log_cheat_event(test_id):
     from datetime import datetime
+    from flask import session as flask_session
     user = g.current_user
     data = request.get_json() or {}
     attempt_id = data.get('attempt_id')
@@ -132,21 +132,39 @@ def log_cheat_event(test_id):
     duration_seconds = float(data.get('duration_seconds', 0) or 0)  # seconds the tab was hidden
 
     db = get_db()
-    is_staff = user['role'] in ('admin', 'principal', 'vice_principal', 'teacher')
+    is_staff = user and user['role'] in ('admin', 'principal', 'vice_principal', 'teacher')
     if is_staff:
         test = db.execute('SELECT * FROM tests WHERE id=?', (test_id,)).fetchone()
         if not test:
             return jsonify({'error': 'Test not found'}), 404
-    else:
+    elif user:
         test, access_error = _get_accessible_student_test(db, user, test_id)
         if access_error:
             body, status = access_error
             return jsonify(body), status
+    else:
+        guest_name = flask_session.get('guest_name')
+        if not guest_name:
+            return jsonify({'error': 'Unauthorized'}), 401
+        test = db.execute('SELECT * FROM tests WHERE id=?', (test_id,)).fetchone()
+        if not test:
+            return jsonify({'error': 'Test not found'}), 404
 
-    attempt = db.execute(
-        'SELECT * FROM test_attempts WHERE id=? AND test_id=? AND student_id=? AND status="in_progress"',
-        (attempt_id, test_id, user['id'])
-    ).fetchone()
+    if user and not is_staff:
+        attempt = db.execute(
+            'SELECT * FROM test_attempts WHERE id=? AND test_id=? AND student_id=? AND status="in_progress"',
+            (attempt_id, test_id, user['id'])
+        ).fetchone()
+    elif not user:
+        attempt = db.execute(
+            'SELECT * FROM test_attempts WHERE id=? AND test_id=? AND guest_name=? AND status="in_progress"',
+            (attempt_id, test_id, flask_session.get('guest_name'))
+        ).fetchone()
+    else:
+        attempt = db.execute(
+            'SELECT * FROM test_attempts WHERE id=? AND test_id=? AND status="in_progress"',
+            (attempt_id, test_id)
+        ).fetchone()
 
     if not attempt:
         return jsonify({'error': 'Спробу не знайдено'}), 404
@@ -156,13 +174,22 @@ def log_cheat_event(test_id):
     # Check if anticheat is disabled for this student or globally for session
     anticheat_disabled = False
     # Check per-student disable
-    part_row = db.execute(
-        """SELECT tsp.anticheat_disabled FROM test_session_participants tsp
-           JOIN test_sessions ts ON tsp.session_id = ts.id
-           WHERE tsp.student_id=? AND ts.test_id=? AND ts.status != 'closed'
-           ORDER BY tsp.joined_at DESC LIMIT 1""",
-        (user['id'], test_id)
-    ).fetchone()
+    if user:
+        part_row = db.execute(
+            """SELECT tsp.anticheat_disabled FROM test_session_participants tsp
+               JOIN test_sessions ts ON tsp.session_id = ts.id
+               WHERE tsp.student_id=? AND ts.test_id=? AND ts.status != 'closed'
+               ORDER BY tsp.joined_at DESC LIMIT 1""",
+            (user['id'], test_id)
+        ).fetchone()
+    else:
+        part_row = db.execute(
+            """SELECT tsp.anticheat_disabled FROM test_session_participants tsp
+               JOIN test_sessions ts ON tsp.session_id = ts.id
+               WHERE tsp.guest_name=? AND ts.test_id=? AND ts.status != 'closed'
+               ORDER BY tsp.joined_at DESC LIMIT 1""",
+            (flask_session.get('guest_name'), test_id)
+        ).fetchone()
     if part_row and part_row['anticheat_disabled']:
         anticheat_disabled = True
     # Check global session disable
@@ -212,8 +239,8 @@ def log_cheat_event(test_id):
 
 
 @api_bp.route('/test/<int:test_id>/submit', methods=['POST'])
-@login_required
 def submit_test(test_id):
+    from flask import session as flask_session
     user = g.current_user
     data = request.get_json()
     if not data:
@@ -227,22 +254,42 @@ def submit_test(test_id):
         client_cheat_count = 0
 
     db = get_db()
-    is_staff = user['role'] in ('admin', 'principal', 'vice_principal', 'teacher')
+    is_staff = user and user['role'] in ('admin', 'principal', 'vice_principal', 'teacher')
 
     if is_staff:
         test = db.execute('SELECT * FROM tests WHERE id=?', (test_id,)).fetchone()
         if not test:
             return jsonify({'error': 'Test not found'}), 404
-    else:
+    elif user:
         test, access_error = _get_accessible_student_test(db, user, test_id)
         if access_error:
             body, status = access_error
             return jsonify(body), status
+    else:
+        # Guest student
+        guest_name = flask_session.get('guest_name')
+        if not guest_name:
+            return jsonify({'error': 'Unauthorized'}), 401
+        test = db.execute('SELECT * FROM tests WHERE id=?', (test_id,)).fetchone()
+        if not test:
+            return jsonify({'error': 'Test not found'}), 404
 
-    attempt = db.execute(
-        'SELECT * FROM test_attempts WHERE id=? AND test_id=? AND student_id=? AND status="in_progress"',
-        (attempt_id, test_id, user['id'])
-    ).fetchone()
+    if user and not is_staff:
+        attempt = db.execute(
+            'SELECT * FROM test_attempts WHERE id=? AND test_id=? AND student_id=? AND status="in_progress"',
+            (attempt_id, test_id, user['id'])
+        ).fetchone()
+    elif not user:
+        attempt = db.execute(
+            'SELECT * FROM test_attempts WHERE id=? AND test_id=? AND guest_name=? AND status="in_progress"',
+            (attempt_id, test_id, flask_session.get('guest_name'))
+        ).fetchone()
+    else:
+        attempt = db.execute(
+            'SELECT * FROM test_attempts WHERE id=? AND test_id=? AND status="in_progress"',
+            (attempt_id, test_id)
+        ).fetchone()
+
     if not attempt:
         return jsonify({'error': 'Спробу не знайдено'}), 404
 
@@ -295,7 +342,7 @@ def submit_test(test_id):
     )
 
     test = db.execute('SELECT subject_id, is_practice, topic FROM tests WHERE id=?', (test_id,)).fetchone()
-    if test and not test['is_practice'] and test['topic']:
+    if user and test and not test['is_practice'] and test['topic']:
         db.execute(
             """INSERT INTO completed_topics (student_id, subject_id, topic, source_test_id)
                VALUES (?, ?, ?, ?)

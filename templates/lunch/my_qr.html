@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Мій QR для харчування — Ліцей №3{% endblock %}
+{% block content %}
+<div class="container" style="max-width: 700px; padding: 25px 15px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+        <div>
+            <h1 style="font-size:22px;font-weight:700;margin:0 0 4px 0;">🍽️ QR-код для харчування</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:13px;">{{ today }} · Пред'явіть QR в столовій</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <form method="POST" action="{{ url_for('lunch.test_send_qr') }}" style="display:inline;">
+                <button type="submit" class="btn btn-primary btn-sm" style="display:inline-flex;align-items:center;gap:6px;">
+                    ⚡ Надіслати QR у Telegram
+                </button>
+            </form>
+            <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline btn-sm">← Кабінет</a>
+        </div>
+    </div>
+
+    {% if not students %}
+    <div class="card" style="padding:30px;text-align:center;color:var(--text-muted);">
+        Немає активних токенів. Зверніться до класного керівника.
+    </div>
+    {% endif %}
+
+    {% for s in students %}
+    <div class="card" style="padding:24px;margin-bottom:20px;text-align:center;">
+        <h2 style="font-size:18px;font-weight:700;margin:0 0 4px 0;">{{ s.full_name }}</h2>
+
+        {% if s.used %}
+        <div style="margin:16px auto;padding:16px 24px;background:var(--success-bg);border:2px solid var(--success-border);border-radius:12px;display:inline-block;">
+            <div style="font-size:28px;font-weight:800;color:var(--success);">✅ Обід отримано</div>
+            {% if s.used_at %}
+            <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">о {{ s.used_at[11:16] }}</div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div style="margin:16px auto;display:inline-block;border:3px solid var(--border);border-radius:12px;padding:12px;background:#fff;">
+            <img src="{{ url_for('lunch.get_qr_png', student_id=s.id) }}"
+                 alt="QR-код харчування"
+                 style="width:220px;height:220px;display:block;">
+        </div>
+        <p style="font-size:11px;color:var(--text-muted);margin:6px 0 0 0;letter-spacing:1px;font-family:monospace;">
+            {{ s.token[:8] }}…{{ s.token[-6:] }}
+        </p>
+        <p style="font-size:13px;color:var(--text-muted);margin:8px 0 16px 0;">
+            Покажіть цей QR-код касиру в столовій
+        </p>
+
+        {% if current_user.telegram_id %}
+        <form method="POST" action="{{ url_for('lunch.send_qr_to_telegram', student_id=s.id) }}" style="display:inline-block;">
+            <button type="submit" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;">
+                📲 Надіслати цей QR у Telegram
+            </button>
+        </form>
+        {% else %}
+        <a href="{{ url_for('dashboard.link_telegram') }}" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;">
+            ⚠️ Підключити Telegram щоб отримати QR на телефон
+        </a>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <div class="card" style="padding:16px 20px;font-size:13px;color:var(--text-muted);">
+        <strong>Як це працює:</strong><br>
+        Вчитель відмічає вашу присутність → QR автоматично активується → в столовій сканують код → обід зараховано.
+        QR дійсний <strong>тільки сьогодні</strong> і тільки для <strong>одного разу</strong>.
+    </div>
+</div>
+{% endblock %}

@@ -1,10 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{% if mat %}Редагувати{% else %}Новий матеріал{% endif %} — Матеріали{% endblock %}
 {% block head %}
-<!-- EasyMDE Markdown editor -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css">
-<script src="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.js"></script>
-<!-- marked for live preview -->
+<!-- KaTeX for formula rendering in Quill -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<!-- Quill WYSIWYG editor -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css">
+<script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+<!-- Turndown HTML to Markdown + GFM for tables -->
+<script src="https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/turndown-plugin-gfm@1.0.2/dist/turndown-plugin-gfm.min.js"></script>
+<!-- Marked Markdown to HTML -->
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
 <style>
 .ai-panel {
@@ -24,19 +30,93 @@
 .ai-tab.active { background:#4f46e5;color:#fff;border-color:#4f46e5; }
 .ai-section { display:none; }
 .ai-section.active { display:block; }
-.editor-toolbar-custom {
-    display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;
+
+/* Quill WYSIWYG overrides */
+.ql-toolbar.ql-snow {
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px 8px 0 0;
+    background: #f8fafc;
 }
-/* EasyMDE overrides */
-.CodeMirror { min-height: 400px; font-size: 15px; font-family: 'Segoe UI', system-ui, sans-serif; }
-.editor-preview { font-size: 15px; line-height: 1.7; }
-.editor-preview h1 { font-size:24px;color:#1e3a8a;border-bottom:2px solid #e2e8f0;padding-bottom:6px; }
-.editor-preview h2 { font-size:20px;color:#1e40af; }
-.editor-preview h3 { font-size:17px;color:#1d4ed8; }
-.editor-preview mark { background:#fef08a;color:#713f12;padding:1px 4px;border-radius:3px; }
-.editor-preview table { border-collapse:collapse;width:100%; }
-.editor-preview table th { background:#1e3a8a;color:#fff;padding:8px 12px; }
-.editor-preview table td { padding:7px 12px;border-bottom:1px solid #e2e8f0; }
+.ql-container.ql-snow {
+    border: 1.5px solid #cbd5e1;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    font-size: 16px;
+    font-family: inherit;
+    background: #ffffff;
+    min-height: 380px;
+}
+.ql-editor {
+    min-height: 380px;
+    line-height: 1.7;
+    font-size: 16px;
+    color: #1e293b;
+}
+.ql-editor h1 {
+    font-size: 26px;
+    color: #1e3a8a;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 6px;
+    margin: 18px 0 10px;
+}
+.ql-editor h2 {
+    font-size: 21px;
+    color: #1e40af;
+    margin: 16px 0 8px;
+}
+.ql-editor blockquote {
+    border-left: 4px solid #6366f1;
+    padding: 6px 14px;
+    background: #f5f3ff;
+    color: #4338ca;
+}
+/* Visual Table Embed inside Quill */
+.quill-table-embed {
+    margin: 14px 0;
+    overflow-x: auto;
+    background: #ffffff;
+    border-radius: 6px;
+}
+.quill-table-embed table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+    margin: 0;
+}
+.quill-table-embed th {
+    background: #1e3a8a;
+    color: #ffffff;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    border: 1px solid #1e3a8a;
+}
+.quill-table-embed td {
+    border: 1px solid #cbd5e1;
+    padding: 8px 12px;
+    vertical-align: top;
+}
+.quill-table-embed tr:nth-child(even) td {
+    background: #f8fafc;
+}
+/* Visual formula display in Quill */
+.ql-formula {
+    display: inline-block;
+    padding: 2px 6px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    vertical-align: middle;
+    cursor: default;
+    user-select: all;
+}
+.ql-formula-display {
+    display: block;
+    text-align: center;
+    margin: 10px 0;
+    background: #f8fafc;
+    padding: 8px;
+    border-radius: 6px;
+}
 .ocr-drop-zone {
     border: 2px dashed #c7d2fe;
     border-radius: 10px;
@@ -56,18 +136,18 @@
 
 {% block content %}
 <div class="dashboard-header">
-    <h1>{% if mat %}✏️ Редагування матеріалу{% else %}+ Новий навчальний матеріал{% endif %}</h1>
+    <h1>{% if mat %}Редагування матеріалу{% else %}Новий навчальний матеріал{% endif %}</h1>
     <p><a href="{{ url_for('materials.list_materials') }}">← До списку матеріалів</a></p>
 </div>
 
-<!-- ═══ AI ПАНЕЛЬ ═══════════════════════════════════════════════════════════ -->
+<!-- AI ПАНЕЛЬ -->
 <div class="ai-panel">
-    <h3>✨ AI-помічник</h3>
+    <h3>AI-помічник для вчителя</h3>
 
     <div class="ai-section-tabs">
-        <button type="button" class="ai-tab active" data-tab="generate">🤖 Генерувати</button>
-        <button type="button" class="ai-tab" data-tab="format">📝 Форматувати текст</button>
-        <button type="button" class="ai-tab" data-tab="ocr">📷 Фото / Рукопис</button>
+        <button type="button" class="ai-tab active" data-tab="generate">Генератор теми</button>
+        <button type="button" class="ai-tab" data-tab="format">Форматувати текст</button>
+        <button type="button" class="ai-tab" data-tab="ocr">Розпізнати фото / рукопис</button>
     </div>
 
     <!-- Tab: Generate -->
@@ -110,11 +190,17 @@
             <label>Тема / запит для AI:</label>
             <input type="text" id="ai-topic" placeholder="Наприклад: Похідна складної функції, правила диференціювання">
         </div>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
             <button type="button" id="btn-ai-gen" class="btn btn-primary"
                     style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;">
-                ✨ Згенерувати через AI
+                Згенерувати через AI
             </button>
+            <label id="ai-mat-img-toggle-label" style="display:flex;align-items:center;gap:7px;font-size:14px;font-weight:500;cursor:pointer;
+                          padding:6px 14px;border:1px solid #c7d2fe;border-radius:8px;background:#eef2ff;color:#4338ca;
+                          transition:background .15s;" title="Згенерувати наочну навчальну схему та ілюстрацію">
+                <input type="checkbox" id="ai-mat-gen-images" style="width:16px;height:16px;accent-color:#4f46e5;cursor:pointer;">
+                Генерація зображень / фото
+            </label>
             <span id="gen-status" style="font-size:14px;color:#64748b;"></span>
         </div>
     </div>
@@ -122,7 +208,7 @@
     <!-- Tab: Format raw text -->
     <div class="ai-section" id="tab-format">
         <p style="font-size:13px;color:#64748b;margin-bottom:8px;">
-            Вставте будь-який текст (скопійований з Word, сайту, нотаток) — AI відформатує його в чистий Markdown.
+            Вставте будь-який текст (скопійований з Word, сайту, нотаток) — AI відформатує його в структурований матеріал.
         </p>
         <textarea id="raw-paste" rows="6"
                   placeholder="Вставте сирий текст сюди..."
@@ -130,7 +216,7 @@
         <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
             <button type="button" id="btn-format" class="btn btn-primary"
                     style="background:linear-gradient(135deg,#0891b2,#0e7490);border:none;">
-                📝 Відформатувати
+                Відформатувати
             </button>
             <span id="format-status" style="font-size:14px;color:#64748b;"></span>
         </div>
@@ -139,26 +225,25 @@
     <!-- Tab: OCR photo -->
     <div class="ai-section" id="tab-ocr">
         <p style="font-size:13px;color:#64748b;margin-bottom:10px;">
-            Сфотографуйте рукописні нотатки або роздруківку — AI розпізнає текст і перетворить у Markdown.
+            Сфотографуйте рукописні нотатки або роздруківку — AI розпізнає текст і вставить у редактор.
         </p>
         <div class="ocr-drop-zone" id="ocr-drop" onclick="document.getElementById('ocr-file').click()">
-            <div style="font-size:36px;margin-bottom:8px;">📷</div>
-            <div style="font-weight:600;color:#4338ca;">Клікніть або перетягніть фото</div>
-            <div style="font-size:12px;color:#94a3b8;margin-top:4px;">JPG, PNG, WEBP — до 5 МБ</div>
+            <div style="font-weight:600;color:#4338ca;margin-bottom:4px;">Натисніть або перетягніть фото сюди</div>
+            <div style="font-size:12px;color:#94a3b8;">JPG, PNG, WEBP — до 5 МБ</div>
             <input type="file" id="ocr-file" accept="image/*" style="display:none;">
             <div class="ocr-preview" id="ocr-preview"></div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;">
             <button type="button" id="btn-ocr" class="btn btn-primary" disabled
                     style="background:linear-gradient(135deg,#059669,#047857);border:none;">
-                🔍 Розпізнати та вставити
+                Розпізнати та вставити
             </button>
             <span id="ocr-status" style="font-size:14px;color:#64748b;"></span>
         </div>
     </div>
 </div>
 
-<!-- ═══ FORM ═════════════════════════════════════════════════════════════════ -->
+<!-- FORM -->
 <form method="POST" class="card standard-form" id="mat-form" style="padding:24px 28px;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
@@ -195,26 +280,38 @@
         </div>
     </div>
 
-    <div class="form-group">
-        <label>Вміст матеріалу (Markdown) *:</label>
+    <!-- Вміст матеріалу (Візуальний редактор) -->
+    <div class="form-group" style="margin-bottom: 20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <label style="font-weight:600;margin:0;">Вміст матеріалу *:</label>
+            <button type="button" id="btn-insert-formula" class="btn btn-sm btn-outline"
+                    style="border-color:#6366f1;color:#4f46e5;background:#f5f3ff;font-weight:600;display:flex;align-items:center;gap:6px;">
+                <span>∑ Вставити формулу</span>
+            </button>
+        </div>
+        <div id="editor-container"></div>
         <textarea id="content_md" name="content_md" style="display:none;">{{ mat.content_md if mat else '' }}</textarea>
     </div>
 
-    <div style="display:flex;align-items:center;gap:14px;margin-top:18px;flex-wrap:wrap;">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
-            <input type="checkbox" name="is_published" value="1" style="width:16px;height:16px;"
-                   {% if mat and mat.is_published %}checked{% endif %}>
+    <!-- hidden field kept for backward compat; images inserted via Quill editor toolbar -->
+    <input type="hidden" name="material_images" id="material-images-data" value="{{ mat.image_urls if mat else '' }}">
+
+    <input type="hidden" id="is-published-hidden" name="is_published" value="">
+    <div style="margin-top:24px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+        <button type="submit" class="btn btn-outline" style="font-size:15px; padding:10px 22px; border-color:#64748b; color:#374151;"
+                onclick="document.getElementById('is-published-hidden').value=''">
+            Зберегти чернетку
+        </button>
+        <button type="submit" class="btn btn-primary" style="font-size:16px; padding:10px 28px; background:linear-gradient(135deg,#059669,#10b981); border:none;"
+                onclick="document.getElementById('is-published-hidden').value='1'">
             Опублікувати (видно учням класу)
-        </label>
-        <button type="submit" class="btn btn-primary" style="font-size:15px;padding:10px 22px;">
-            💾 Зберегти матеріал
         </button>
         <a href="{{ url_for('materials.list_materials') }}" class="btn btn-outline">Скасувати</a>
     </div>
 </form>
 
 <script>
-// ── AI Tab switching ─────────────────────────────────────────────────────────
+// Tab switching
 document.querySelectorAll('.ai-tab').forEach(tab => {
     tab.addEventListener('click', () => {
         document.querySelectorAll('.ai-tab').forEach(t => t.classList.remove('active'));
@@ -224,70 +321,205 @@ document.querySelectorAll('.ai-tab').forEach(tab => {
     });
 });
 
-// ── EasyMDE init ─────────────────────────────────────────────────────────────
-const easyMDE = new EasyMDE({
-    element: document.getElementById('content_md'),
-    spellChecker: false,
-    autosave: { enabled: true, uniqueId: 'material_{{ mat.id if mat else "new" }}', delay: 3000 },
-    toolbar: [
-        'bold', 'italic', 'strikethrough', '|',
-        'heading-1', 'heading-2', 'heading-3', '|',
-        'unordered-list', 'ordered-list', '|',
-        'link', 'table', 'horizontal-rule', '|',
-        'quote', 'code', '|',
-        'preview', 'side-by-side', 'fullscreen', '|',
-        {
-            name: 'highlight',
-            action(editor) {
-                const cm = editor.codemirror;
-                const sel = cm.getSelection();
-                cm.replaceSelection(sel ? `==${sel}==` : '==текст==');
-            },
-            className: 'fa fa-highlighter',
-            title: 'Підсвічування ==текст=='
-        },
-        {
-            name: 'formula',
-            action(editor) {
-                const cm = editor.codemirror;
-                const sel = cm.getSelection();
-                cm.replaceSelection(sel ? `$${sel}$` : '$формула$');
-            },
-            className: 'fa fa-square-root-alt',
-            title: 'Формула LaTeX $...$'
-        }
-    ],
-    previewRender(text) {
-        let html = marked.parse(text.replace(/==(.+?)==/g, '<mark>$1</mark>'));
-        return html;
-    },
-    placeholder: 'Починайте писати або скористайтеся AI вище...\n\n# Заголовок 1\n## Заголовок 2\n\n**Жирний** текст, *курсив*, ==підсвічування==\n\nФормула: $x^2 + y^2 = r^2$',
+// Register Custom Block Blot for Tables in Quill so Quill never strips <table> tags
+const BlockEmbed = Quill.import('blots/block/embed');
+class TableBlot extends BlockEmbed {
+    static create(html) {
+        const node = super.create();
+        node.setAttribute('contenteditable', 'false');
+        node.innerHTML = html;
+        return node;
+    }
+    static value(node) {
+        return node.innerHTML;
+    }
+}
+TableBlot.blotName = 'tableEmbed';
+TableBlot.tagName = 'div';
+TableBlot.className = 'quill-table-embed';
+Quill.register(TableBlot);
+
+// Turndown HTML to Markdown init
+const turndownService = new TurndownService({
+    headingStyle: 'atx',
+    codeBlockStyle: 'fenced'
 });
 
-function insertMd(content) {
-    const cm = easyMDE.codemirror;
-    const cursor = cm.getCursor();
-    const existing = easyMDE.value().trim();
-    if (existing) {
-        cm.replaceRange('\n\n' + content, {line: cm.lineCount()});
-    } else {
-        easyMDE.value(content);
-    }
-    cm.focus();
+// Enable GFM tables in Turndown if available
+if (window.turndownPluginGfm && window.turndownPluginGfm.tables) {
+    turndownService.use(window.turndownPluginGfm.tables);
 }
 
-// ── AI Generate ───────────────────────────────────────────────────────────────
+// Convert tableEmbed back to Markdown table
+turndownService.addRule('tableEmbed', {
+    filter: function(node) {
+        return node.classList && node.classList.contains('quill-table-embed');
+    },
+    replacement: function(content, node) {
+        const table = node.querySelector('table');
+        if (!table) return '\n\n' + content + '\n\n';
+        let md = '\n\n';
+        const rows = Array.from(table.querySelectorAll('tr'));
+        rows.forEach((tr, rIdx) => {
+            const cells = Array.from(tr.querySelectorAll('th, td')).map(c => c.textContent.trim().replace(/\|/g, '\\|'));
+            if (cells.length) {
+                md += '| ' + cells.join(' | ') + ' |\n';
+                if (rIdx === 0) {
+                    md += '| ' + cells.map(() => '---').join(' | ') + ' |\n';
+                }
+            }
+        });
+        return md + '\n\n';
+    }
+});
+
+turndownService.addRule('highlight', {
+    filter: ['mark'],
+    replacement: function(content) {
+        return '==' + content + '==';
+    }
+});
+
+// Preserve Quill formulas as $formula$
+turndownService.addRule('formula', {
+    filter: function(node) {
+        return node.classList && (node.classList.contains('ql-formula') || node.hasAttribute('data-value'));
+    },
+    replacement: function(content, node) {
+        const latex = node.getAttribute('data-value') || '';
+        if (!latex) return '';
+        if (node.classList.contains('ql-formula-display')) {
+            return `\n\n$$${latex}$$\n\n`;
+        }
+        return `$${latex}$`;
+    }
+});
+
+// Preserve images from Quill as Markdown ![alt](src)
+turndownService.addRule('images', {
+    filter: 'img',
+    replacement: function(content, node) {
+        const src = node.getAttribute('src') || '';
+        const alt = node.getAttribute('alt') || 'Ілюстрація';
+        return src ? `\n\n![${alt}](${src})\n\n` : '';
+    }
+});
+
+// Track last cursor position in editor
+let quillLastRange = null;
+
+// Initialize Quill WYSIWYG Editor
+const quill = new Quill('#editor-container', {
+    theme: 'snow',
+    placeholder: 'Введіть зміст матеріалу...',
+    modules: {
+        toolbar: [
+            [{ 'header': 1 }, { 'header': 2 }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            ['blockquote', 'code-block'],
+            ['link', 'image'],
+            ['clean']
+        ]
+    }
+});
+
+quill.on('selection-change', (range) => {
+    if (range) quillLastRange = range;
+});
+
+// Safe Markdown to HTML renderer: protects math, renders KaTeX visual spans, wraps tables
+function renderMarkdownSafely(md) {
+    if (!md) return '';
+    let text = md.replace(/==(.+?)==/g, '<mark>$1</mark>');
+
+    // 1. Protect block math $$...$$
+    const mathBlocks = [];
+    text = text.replace(/\$\$([\s\S]+?)\$\$/g, (match, formula) => {
+        const clean = formula.trim();
+        let rendered = clean;
+        try {
+            if (window.katex) rendered = katex.renderToString(clean, { displayMode: true, throwOnError: false });
+        } catch (_) {}
+        const token = `MATHBLOCKPLACEHOLDER${mathBlocks.length}END`;
+        mathBlocks.push(`<span class="ql-formula ql-formula-display" data-value="${escapeHtml(clean)}" contenteditable="false">${rendered}</span>`);
+        return '\n\n' + token + '\n\n';
+    });
+
+    // 2. Protect inline math $...$
+    const mathInlines = [];
+    text = text.replace(/\$([^\$\n]+?)\$/g, (match, formula) => {
+        const clean = formula.trim();
+        let rendered = clean;
+        try {
+            if (window.katex) rendered = katex.renderToString(clean, { displayMode: false, throwOnError: false });
+        } catch (_) {}
+        const token = `MATHINLINEPLACEHOLDER${mathInlines.length}END`;
+        mathInlines.push(`<span class="ql-formula" data-value="${escapeHtml(clean)}" contenteditable="false">${rendered}</span>`);
+        return token;
+    });
+
+    // 3. Marked parses text without corrupting math underscores or subscripts
+    let html = marked.parse(text);
+
+    // 4. Restore math
+    mathBlocks.forEach((rendered, idx) => {
+        html = html.split(`MATHBLOCKPLACEHOLDER${idx}END`).join(rendered);
+    });
+    mathInlines.forEach((rendered, idx) => {
+        html = html.split(`MATHINLINEPLACEHOLDER${idx}END`).join(rendered);
+    });
+
+    // 5. Wrap all <table> elements in .quill-table-embed so Quill never strips them!
+    html = html.replace(/<table[\s\S]*?<\/table>/gi, (tbl) => {
+        return `<div class="quill-table-embed" contenteditable="false">${tbl}</div>`;
+    });
+
+    return html;
+}
+
+// Pre-fill editor from initial Markdown if editing
+const initialMd = document.getElementById('content_md').value.trim();
+if (initialMd) {
+    quill.root.innerHTML = renderMarkdownSafely(initialMd);
+}
+
+// Function to append or insert Markdown into visual editor
+function insertMd(content) {
+    const html = renderMarkdownSafely(content);
+    if (quill.getText().trim().length === 0) {
+        quill.root.innerHTML = html;
+    } else {
+        quill.root.innerHTML += '<p><br></p>' + html;
+    }
+}
+
+// Sync content to hidden textarea before form submission
+document.getElementById('mat-form').addEventListener('submit', function(e) {
+    try {
+        const html = quill.root.innerHTML;
+        const md = turndownService.turndown(html);
+        document.getElementById('content_md').value = md || html;
+    } catch (err) {
+        // Fallback: use raw HTML if turndown fails; server still gets content
+        console.warn('turndown failed, using raw HTML:', err);
+        document.getElementById('content_md').value = quill.root.innerHTML;
+    }
+});
+
+// AI Generate
 document.getElementById('btn-ai-gen').addEventListener('click', async () => {
     const topic   = document.getElementById('ai-topic').value.trim();
     const subject = document.getElementById('ai-subject').value;
     const cls     = document.getElementById('ai-class').value;
     const type    = document.getElementById('ai-type').value;
     const length  = document.getElementById('ai-length').value;
+    const genImages = document.getElementById('ai-mat-gen-images').checked;
     const status  = document.getElementById('gen-status');
 
     if (!topic) { alert('Введіть тему!'); document.getElementById('ai-topic').focus(); return; }
 
-    status.textContent = '⏳ Генерація... Зачекайте.';
+    status.textContent = 'Генерація матеріалу... Зачекайте.';
     status.style.color = '#4f46e5';
     document.getElementById('btn-ai-gen').disabled = true;
 
@@ -295,7 +527,7 @@ document.getElementById('btn-ai-gen').addEventListener('click', async () => {
         const r = await fetch('/materials/api/generate', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ subject, class_level: cls, topic, material_type: type, length })
+            body: JSON.stringify({ subject, class_level: cls, topic, material_type: type, length, generate_images: genImages })
         });
         const data = await r.json();
         if (!data.success) throw new Error(data.error);
@@ -311,23 +543,23 @@ document.getElementById('btn-ai-gen').addEventListener('click', async () => {
             document.getElementById('subject').value = subject;
         }
 
-        status.textContent = '✅ Згенеровано!';
+        status.textContent = 'Згенеровано успішно!';
         status.style.color = '#16a34a';
     } catch(e) {
-        status.textContent = '❌ ' + e.message;
+        status.textContent = 'Помилка: ' + e.message;
         status.style.color = '#dc2626';
     } finally {
         document.getElementById('btn-ai-gen').disabled = false;
     }
 });
 
-// ── Format raw text ────────────────────────────────────────────────────────────
+// Format raw text
 document.getElementById('btn-format').addEventListener('click', async () => {
     const text   = document.getElementById('raw-paste').value.trim();
     const status = document.getElementById('format-status');
     if (!text) { alert('Вставте текст!'); return; }
 
-    status.textContent = '⏳ Форматування...';
+    status.textContent = 'Форматування...';
     status.style.color = '#0891b2';
     document.getElementById('btn-format').disabled = true;
 
@@ -342,17 +574,17 @@ document.getElementById('btn-format').addEventListener('click', async () => {
 
         insertMd(data.content);
         document.getElementById('raw-paste').value = '';
-        status.textContent = '✅ Вставлено в редактор!';
+        status.textContent = 'Вставлено в редактор!';
         status.style.color = '#16a34a';
     } catch(e) {
-        status.textContent = '❌ ' + e.message;
+        status.textContent = 'Помилка: ' + e.message;
         status.style.color = '#dc2626';
     } finally {
         document.getElementById('btn-format').disabled = false;
     }
 });
 
-// ── OCR photo ──────────────────────────────────────────────────────────────────
+// OCR photo
 let ocrImageB64 = null;
 
 function handleOcrFile(file) {
@@ -384,7 +616,7 @@ dropZone.addEventListener('drop', e => {
 document.getElementById('btn-ocr').addEventListener('click', async () => {
     if (!ocrImageB64) return;
     const status = document.getElementById('ocr-status');
-    status.textContent = '⏳ Розпізнавання... (до 30 сек)';
+    status.textContent = 'Розпізнавання...';
     status.style.color = '#059669';
     document.getElementById('btn-ocr').disabled = true;
 
@@ -398,25 +630,52 @@ document.getElementById('btn-ocr').addEventListener('click', async () => {
         if (!data.success) throw new Error(data.error);
 
         insertMd(data.content);
-        status.textContent = '✅ Вставлено в редактор!';
+        status.textContent = 'Вставлено в редактор!';
         status.style.color = '#16a34a';
     } catch(e) {
-        status.textContent = '❌ ' + e.message;
+        status.textContent = 'Помилка: ' + e.message;
         status.style.color = '#dc2626';
+    } finally {
         document.getElementById('btn-ocr').disabled = false;
     }
 });
+</script>
 
-// ── Render KaTeX after EasyMDE preview ────────────────────────────────────────
-document.addEventListener('click', e => {
-    if (e.target.closest('.editor-preview') && window.renderMathInElement) {
-        setTimeout(() => {
-            renderMathInElement(document.querySelector('.editor-preview'), {
-                delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],
-                throwOnError: false
-            });
-        }, 100);
+{% include 'formula_popup.html' %}
+
+<script>
+// Formula popup integration for Quill editor
+document.getElementById('btn-insert-formula')?.addEventListener('click', () => {
+    if (window._formulaPopup) {
+        window._formulaPopup.open((latex) => {
+            let cleanLatex = latex.trim();
+            if (cleanLatex.startsWith('$$') && cleanLatex.endsWith('$$')) {
+                cleanLatex = cleanLatex.slice(2, -2).trim();
+            } else if (cleanLatex.startsWith('$') && cleanLatex.endsWith('$')) {
+                cleanLatex = cleanLatex.slice(1, -1).trim();
+            }
+
+            // Immediately render visual KaTeX formula HTML
+            let rendered = cleanLatex;
+            try {
+                if (window.katex) {
+                    rendered = katex.renderToString(cleanLatex, { displayMode: false, throwOnError: false });
+                }
+            } catch (_) {}
+
+            const formulaHtml = `<span class="ql-formula" data-value="${escapeHtml(cleanLatex)}" contenteditable="false">${rendered}</span>&nbsp;`;
+
+            // Insert at saved cursor position
+            const targetRange = quillLastRange || quill.getSelection(true) || { index: quill.getLength() };
+            const insertIdx = (targetRange && targetRange.index !== undefined) ? targetRange.index : quill.getLength();
+
+            quill.clipboard.dangerouslyPasteHTML(insertIdx, formulaHtml, 'user');
+            quill.setSelection(insertIdx + 2);
+            quillLastRange = { index: insertIdx + 2, length: 0 };
+        });
     }
 });
+
+
 </script>
 {% endblock %}

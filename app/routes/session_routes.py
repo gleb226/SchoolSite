@@ -337,11 +337,23 @@ def join_submit():
                 (sess['id'], student_id)
             )
             db.commit()
-        return redirect(url_for('session.student_waiting', session_id=sess['id']))
     else:
-        # Гість — перенаправляємо одразу на очікування без запису в учасники
-        # (запис відбудеться через окремий гостьовий шлях)
-        return redirect(url_for('session.student_waiting', session_id=sess['id']))
+        # Гість — створюємо або знаходимо запис учасника з guest_name
+        existing = db.execute(
+            'SELECT * FROM test_session_participants WHERE session_id=? AND guest_name=?',
+            (sess['id'], guest_name)
+        ).fetchone()
+        if not existing:
+            cur = db.execute(
+                'INSERT INTO test_session_participants (session_id, guest_name) VALUES (?,?)',
+                (sess['id'], guest_name)
+            )
+            db.commit()
+            flask_session['guest_participant_id'] = cur.lastrowid
+        else:
+            flask_session['guest_participant_id'] = existing['id']
+
+    return redirect(url_for('session.student_waiting', session_id=sess['id']))
 
 
 # ── Учень: сторінка очікування ────────────────────────────────────────────────
@@ -403,7 +415,6 @@ def student_waiting(session_id):
 def begin_test(session_id):
     """
     Учень/гість натискає «Почати тест».
-    Гості перенаправляються до take_test, але без збереження результату в БД учнів.
     """
     from flask import session as flask_session
     user = g.current_user
@@ -428,7 +439,6 @@ def begin_test(session_id):
             abort(403)
         return redirect(url_for('tests.take_test', test_id=sess['test_id']))
     else:
-        # Гість — переходить до тесту, але take_test побачить guest_name з flask_session
         guest_name = flask_session.get('guest_name')
         if not guest_name or flask_session.get('guest_session_id') != session_id:
             return redirect(url_for('session.join_page'))
@@ -444,13 +454,15 @@ def _load_participants(db, session_id: int) -> list:
                tsp.id, tsp.joined_at, tsp.attempt_id,
                tsp.anticheat_disabled,
                tsp.variant_number,
-               u.full_name, u.id as student_id,
+               COALESCE(u.full_name, tsp.guest_name, 'Гість') as full_name,
+               tsp.student_id,
+               tsp.guest_name,
                ta.score, ta.max_score, ta.status as attempt_status,
                ta.finished_at,
                COALESCE(ta.exit_count, 0) as exit_count,
                COALESCE(ta.exit_duration_seconds, 0.0) as exit_duration_seconds
            FROM test_session_participants tsp
-           JOIN users u ON tsp.student_id = u.id
+           LEFT JOIN users u ON tsp.student_id = u.id
            LEFT JOIN test_attempts ta ON tsp.attempt_id = ta.id
            WHERE tsp.session_id = ?
            ORDER BY tsp.joined_at""",

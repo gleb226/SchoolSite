@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Довідка №{{ cert.cert_number }} — Ужгородський ліцей №3</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            background: #f1f5f9;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .no-print-bar {
+            width: 100%;
+            max-width: 800px;
+            background: #1e293b;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: system-ui, sans-serif;
+            font-size: 14px;
+        }
+        .btn-print {
+            background: #3b82f6;
+            color: #fff;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .btn-print:hover { background: #2563eb; }
+        .page {
+            width: 100%;
+            max-width: 800px;
+            background: #fff;
+            padding: 50px 60px;
+            box-shadow: 0 4px 25px rgba(0,0,0,.1);
+            position: relative;
+            min-height: 900px;
+        }
+        .header-section {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        .ministry {
+            font-size: 13pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .dept {
+            font-size: 11pt;
+            margin-bottom: 4px;
+        }
+        .school-name {
+            font-size: 15pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .school-details {
+            font-size: 9.5pt;
+            color: #333;
+            line-height: 1.3;
+        }
+        .doc-meta {
+            display: flex;
+            justify-content: space-between;
+            margin: 25px 0 35px 0;
+            font-size: 12pt;
+        }
+        .doc-title {
+            text-align: center;
+            font-size: 18pt;
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin-bottom: 30px;
+        }
+        .doc-body {
+            font-size: 13pt;
+            line-height: 1.8;
+            text-align: justify;
+            text-indent: 40px;
+            margin-bottom: 40px;
+        }
+        .signatures {
+            margin-top: 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            position: relative;
+        }
+        .sig-block {
+            font-size: 12pt;
+            line-height: 1.4;
+        }
+        .stamp-wrap {
+            position: absolute;
+            left: 200px;
+            bottom: -20px;
+            width: 140px;
+            height: 140px;
+            border: 3px double #1d4ed8;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #1d4ed8;
+            text-align: center;
+            opacity: 0.85;
+            transform: rotate(-10deg);
+            pointer-events: none;
+            font-size: 8pt;
+            font-family: sans-serif;
+            text-transform: uppercase;
+            font-weight: bold;
+            padding: 8px;
+        }
+        .stamp-inner {
+            border: 1px dashed #1d4ed8;
+            border-radius: 50%;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .qr-section {
+            margin-top: 80px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #ccc;
+            padding-top: 15px;
+            font-size: 9pt;
+            font-family: sans-serif;
+            color: #555;
+        }
+        @media print {
+            body { background: #fff; padding: 0; }
+            .no-print-bar { display: none !important; }
+            .page {
+                box-shadow: none;
+                padding: 40px 50px;
+                max-width: 100%;
+                width: 100%;
+                min-height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="no-print-bar">
+    <div><strong>Електронна довідка №{{ cert.cert_number }}</strong> — готова до друку або збереження в PDF</div>
+    <div>
+        <button class="btn-print" onclick="window.print()">🖨️ Друк / Зберегти як PDF</button>
+    </div>
+</div>
+
+<div class="page">
+    <div class="header-section">
+        <div class="ministry">Міністерство освіти і науки України</div>
+        <div class="dept">Департамент освіти і науки Закарпатської обласної державної адміністрації</div>
+        <div class="school-name">Ужгородський ліцей №3</div>
+        <div class="school-details">
+            вул. Набережна Незалежності, 19, м. Ужгород, 88000<br>
+            Код ЄДРПОУ: 20456123 • Тел: +38 (0312) 61-23-45 • Email: school3.uzh@ukr.net
+        </div>
+    </div>
+
+    <div class="doc-meta">
+        <div><strong>{{ cert.issued_at[:10] if cert.issued_at else cert.created_at[:10] }} р.</strong></div>
+        <div>№ <strong>{{ cert.cert_number or '2026/04-01' }}</strong></div>
+    </div>
+
+    <div class="doc-title">ДОВІДКА</div>
+
+    <div class="doc-body">
+        Видана учневі (учениці) <strong>{{ cert.student_name }}</strong> про те, що він (вона) дійсно є учнем (ученицею)
+        <strong>{{ cert.class_name or 'шкільного' }}</strong> класу <strong>Ужгородського ліцею №3</strong> Закарпатської області
+        денної форми здобуття загальної середньої освіти у 2025/2026 навчальному році.
+        <br><br>
+        Довідка видана для подання: <strong>{{ cert.purpose or 'за місцем вимоги' }}</strong>.
+        <br>
+        Дійсна до завершення 2025/2026 навчального року.
+    </div>
+
+    <div class="signatures">
+        <div class="sig-block">
+            <strong>Директор ліцею</strong><br>
+            Ужгородського ліцею №3
+        </div>
+
+        <!-- Імітація офіційної печатки закладу освіти -->
+        <div class="stamp-wrap">
+            <div class="stamp-inner">
+                <div>УЖГОРОДСЬКИЙ ЛІЦЕЙ №3</div>
+                <div style="font-size: 11pt; margin: 2px 0;">★</div>
+                <div>ЄДРПОУ 20456123<br>ДЛЯ ДОВІДОК</div>
+            </div>
+        </div>
+
+        <div class="sig-block" style="text-align: right;">
+            <em>(підпис)</em> &nbsp;&nbsp;&nbsp; <strong>С. В. Федака</strong>
+        </div>
+    </div>
+
+    <div class="qr-section">
+        <div>
+            Документ сформовано в Єдиній електронній системі ліцею.<br>
+            Верифікаційний код документа: <code>AUTH-{{ cert.id }}-{{ cert.cert_number or '2026' }}</code>
+        </div>
+        <div style="text-align: right; font-weight: bold; color: #1d4ed8;">
+            ✓ ПІДТВЕРДЖЕНО КЕП ДИРЕКТОРА
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

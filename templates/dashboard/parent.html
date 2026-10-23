@@ -1,9 +1,21 @@
 {% extends "base.html" %}
 {% block title %}Кабінет батьків — Ужгородський ліцей №3{% endblock %}
 {% block content %}
-<div class="dashboard-header">
-    <h1>Кабінет батьків</h1>
-    <p>Вітаємо, <strong>{{ current_user.full_name }}</strong>! Тут відображається успішність ваших дітей.</p>
+<div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+    <div>
+        <h1>Кабінет батьків</h1>
+        <p>Вітаємо, <strong>{{ current_user.full_name }}</strong>! Тут відображається успішність ваших дітей.</p>
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        {% if has_gpd_children %}
+        <a href="{{ url_for('services.gpd_index') }}" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+            🎒 Забрати дитину з ГПД
+        </a>
+        {% endif %}
+        <a href="{{ url_for('services.certificates_index') }}" class="btn btn-outline" style="display: inline-flex; align-items: center; gap: 6px;">
+            📑 Замовити довідку
+        </a>
+    </div>
 </div>
 
 {% if children %}
@@ -49,7 +61,14 @@
 {% endif %}
 
 <div class="info-box" style="margin-top: 30px;">
-    <h3>Сповіщення про успішність у Telegram</h3>
-    <p>Підключіть наш Telegram-бот щоб отримувати миттєві сповіщення, якщо дитина отримає низьку оцінку або пропустить урок.</p>
+    <h3>📱 Сповіщення у Telegram</h3>
+    {% if current_user.telegram_id %}
+    <p style="color:#065f46;">✅ Telegram підключено. Сповіщення про відсутність дитини та QR для харчування надходять автоматично.</p>
+    {% else %}
+    <p>Підключіть Telegram щоб отримувати миттєві сповіщення якщо дитина отримає низьку оцінку, пропустить урок або з'явиться QR для харчування.</p>
+    <a href="{{ url_for('dashboard.link_telegram') }}" class="btn btn-primary" style="margin-top:8px;">
+        Підключити Telegram →
+    </a>
+    {% endif %}
 </div>
 {% endblock %}

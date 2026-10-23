@@ -212,6 +212,42 @@ def mark_attendance():
                 db.commit()
                 success = 'Відвідуваність відмічено'
 
+                # Notify parents when student is absent or late
+                if status in ('absent', 'late'):
+                    try:
+                        student = db.execute('SELECT full_name FROM users WHERE id=?', (student_id,)).fetchone()
+                        subject = db.execute('SELECT name FROM subjects WHERE id=?', (subject_id,)).fetchone()
+                        parents = db.execute(
+                            '''SELECT u.telegram_id FROM users u
+                               JOIN parent_student ps ON u.id=ps.parent_id
+                               WHERE ps.student_id=? AND u.telegram_id IS NOT NULL''',
+                            (student_id,)
+                        ).fetchall()
+                        if parents and student and subject:
+                            status_word = 'відсутній' if status == 'absent' else 'запізнився'
+                            from app.bot.telegram_bot import notify_absence
+                            import asyncio, threading
+                            def _notify(p_list, sname, adate, subj_name):
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+                                try:
+                                    for p in p_list:
+                                        try:
+                                            loop.run_until_complete(notify_absence(
+                                                p['telegram_id'], sname, adate, subj_name
+                                            ))
+                                        except Exception:
+                                            pass
+                                finally:
+                                    loop.close()
+                            threading.Thread(
+                                target=_notify,
+                                args=(list(parents), student['full_name'], att_date, subject['name']),
+                                daemon=True
+                            ).start()
+                    except Exception as _ne:
+                        logger.warning(f'Could not send absence notification: {_ne}')
+
     classes = [dict(r) for r in db.execute('SELECT * FROM classes ORDER BY name').fetchall()]
     subjects = [dict(r) for r in db.execute('SELECT * FROM subjects ORDER BY name').fetchall()]
     students = [dict(r) for r in db.execute(

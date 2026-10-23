@@ -19,10 +19,10 @@ if load_dotenv:
 
 logger = logging.getLogger(__name__)
 
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash").strip() or "gemini-3.6-flash"
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip() or "gemini-3.8-flash"
 GEMINI_FALLBACK_MODELS = [
     model.strip()
-    for model in os.environ.get("GEMINI_FALLBACK_MODELS", "gemini-3.7-flash,gemini-3.8-flash,gemini-flash-latest").split(",")
+    for model in os.environ.get("GEMINI_FALLBACK_MODELS", "gemini-3.6-flash,gemini-3.5-flash,gemini-flash-latest,gemini-flash-lite-latest").split(",")
     if model.strip()
 ]
 GEMINI_TIMEOUT_SECONDS = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "90"))
@@ -98,6 +98,15 @@ CURRICULUM_TOPICS = {
         "Розчини та розрахунок масової частки",
         "Окисно-відновні реакції",
         "Вуглеводні: алкани, алкени, алкіни"
+    ],
+    "Чеська мова": [
+        "Чеський алфавіт та вимова: гачек та інші діакритичні знаки",
+        "Числівники та часові вирази чеською мовою",
+        "Теперішній час дієслів: vzory nést, tisk, mazat",
+        "Іменники та відмінки: відмінювання за vzory hrad, žena",
+        "Запитання та відповіді у повсякденному спілкуванні",
+        "Чеська лексика: родина, числа, кольори, тиждень",
+        "Прийменники місця та напрямку чеською мовою"
     ]
 }
 
@@ -334,7 +343,7 @@ def normalize_generated_test(payload: dict, topic: str, question_count: int, pra
             "question_type": q_type,
             "points": _coerce_int(raw_q.get("points"), 1, 1, 12),
             "options": options,
-            "explanation": str(raw_q.get("explanation") or "").strip()[:1000],
+            "explanation": "",  # KR tests never have explanations
         })
 
         if len(normalized_questions) >= count:
@@ -381,7 +390,7 @@ def _generate_test_ai_once(subject: str, topic: str, class_level: str = "", ques
    - "multiple": 4 варіанти, два або більше правильних.
    - "text": задача або відкрите питання без options; правильну відповідь/хід розв'язання опиши в explanation.
 4. Для складності "НМТ" або "поглиблений" додай комплексні задачі, роботу з твердженнями, відповідність або коротку числову/текстову відповідь.
-5. Обов'язково вкажи коротке педагогічне пояснення (explanation).
+5. Не додавай поле explanation у жодне питання. Тільки запитання та правильні відповіді.
 
 Відповідь поверни ВИКЛЮЧНО у валідному JSON наступної структури:
 {{
@@ -717,25 +726,17 @@ def _svg_to_data_url(svg: str) -> str:
 def generate_question_image(question_text: str, subject: str,
                              search_query: str | None = None) -> str | None:
     """
-    Full pipeline: search → validate → SVG fallback.
+    Generate an SVG diagram for a question via Gemini.
 
     Returns:
-        str  — image URL (https://… or data:image/svg+xml;base64,…)
+        str  — data:image/svg+xml;base64,… URL
         None — no image appropriate for this question
     """
     if not _question_needs_image(question_text, subject):
         return None
 
-    # 1. Try Google Image Search
-    query = search_query or f'{subject} {question_text[:80]} схема навчальний'
-    urls = _google_image_search(query)
-    for url in urls:
-        if _validate_image_url(url):
-            logger.info(f'Found image via Google CSE: {url[:60]}')
-            return url
-
-    # 2. Fallback — generate SVG with Gemini
-    logger.info(f'No image found via Google, generating SVG for: {question_text[:60]}')
+    # Generate SVG with Gemini (no external image search)
+    logger.info(f'Generating SVG for: {question_text[:60]}')
     svg = _generate_svg_for_question(question_text, subject)
     if svg:
         return _svg_to_data_url(svg)
@@ -761,3 +762,43 @@ def enrich_questions_with_images(questions: list[dict], subject: str,
             q['image_url'] = img
             enriched += 1
     return questions
+
+
+def generate_material_illustration(subject: str, topic: str) -> str | None:
+    """
+    Generate an educational SVG illustration / diagram for a material topic via Gemini.
+    Returns data:image/svg+xml;base64,... URL or None.
+    """
+    prompt = f"""Ти — генератор навчальних ілюстрацій та схем у форматі SVG для шкільних матеріалів.
+Для предмету "{subject}" та теми "{topic}" створи наочну, змістовну та естетичну схему або графік.
+
+Правила:
+1. Поверни ТІЛЬКИ валідний SVG-код від <svg до </svg>.
+2. Без вступних слів, без пояснень, без markdown-блоків (ніяких ```svg).
+3. viewBox="0 0 600 400", xmlns="http://www.w3.org/2000/svg".
+4. Світлий фон (white або #f8fafc), чіткі лінії, акуратні кольори (#3b82f6, #10b981, #6366f1, #334155).
+5. Написи українською мовою (font-family: Arial, sans-serif; font-size: 13-15px; fill: #1e293b).
+6. Для точних наук: графіки, схеми процесів, геометричні фігури, табличні схеми.
+7. Для гуманітарних наук: концепт-карти, хронологічні блоки, структури.
+8. Жодних тегів <script> та подій onclick/onload.
+
+Відповідь (лише чистий SVG):"""
+
+    try:
+        raw = call_gemini(prompt, json_mode=False)
+        if not raw or not raw.strip():
+            return None
+        match = re.search(r'<svg[\s\S]*?</svg>', raw, re.IGNORECASE)
+        if match:
+            svg = match.group(0)
+            svg = re.sub(r'<script[\s\S]*?</script>', '', svg, flags=re.IGNORECASE)
+            svg = re.sub(r'\son\w+\s*=\s*["\'][^"\']*["\']', '', svg)
+            if len(svg) > 150:
+                import base64
+                b64 = base64.b64encode(svg.encode('utf-8')).decode('ascii')
+                return f'data:image/svg+xml;base64,{b64}'
+        return None
+    except Exception as ex:
+        logger.warning(f"generate_material_illustration failed: {ex}")
+        return None
+

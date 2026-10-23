@@ -7,6 +7,30 @@
     <title>{% block title %}Ужгородський ліцей №3{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+    <style>
+        html[data-theme="dark"], html.dark-mode {
+            background-color: #0b1120 !important;
+            color: #f1f5f9 !important;
+        }
+        html[data-theme="dark"] body, html.dark-mode body {
+            background-color: #0b1120 !important;
+            color: #f1f5f9 !important;
+        }
+    </style>
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                if (savedTheme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.documentElement.classList.add('dark-mode');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    document.documentElement.classList.remove('dark-mode');
+                }
+            } catch (_) {}
+        })();
+    </script>
     {% block head %}{% endblock %}
 </head>
 <body>
@@ -24,7 +48,7 @@
                 <span class="logo-icon">{{ icons.icon('school', 'icon icon-lg') }}</span>
                 <div class="logo-text">
                     <strong>Ужгородський ліцей №3</strong>
-                    <small>вул. Мінська 27, Ужгород</small>
+                    <small>Набережна Незалежності, 19, Ужгород</small>
                 </div>
             </a>
 
@@ -38,6 +62,12 @@
                     <a href="{{ url_for('auth.login') }}" class="btn btn-sm">Увійти</a>
                     <a href="{{ url_for('auth.register') }}" class="btn btn-sm btn-outline">Реєстрація</a>
                 {% endif %}
+
+                <!-- Кнопка перемикання теми -->
+                <button type="button" class="theme-toggle-btn" id="theme-toggle-btn" aria-label="Перемкнути темну тему" title="Перемкнути темну / світлу тему">
+                    <span class="theme-icon-light" aria-hidden="true">☀️</span>
+                    <span class="theme-icon-dark" aria-hidden="true">🌙</span>
+                </button>
 
                 <!-- Бургер-кнопка (тільки мобільний) -->
                 <button class="burger-btn" id="burger-btn" aria-label="Відкрити меню" aria-expanded="false" aria-controls="mobile-nav">
@@ -68,6 +98,8 @@
                     {% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal') %}
                         <li><a href="{{ url_for('materials.list_materials') }}" {% if request.blueprint == 'materials' %}class="active"{% endif %}>Матеріали</a></li>
                     {% endif %}
+                    <li><a href="{{ url_for('services.gpd_index') }}" {% if request.endpoint == 'services.gpd_index' %}class="active"{% endif %}>🎒 ГПД</a></li>
+                    <li><a href="{{ url_for('services.certificates_index') }}" {% if request.endpoint == 'services.certificates_index' %}class="active"{% endif %}>📑 Довідки</a></li>
                     <li>
                         <a href="https://mriia.gov.ua/select" target="_blank" rel="noopener"
                            style="display:flex;align-items:center;gap:5px;">
@@ -75,9 +107,6 @@
                             <span style="font-size:10px;opacity:.6;">↗</span>
                         </a>
                     </li>
-                    {% if current_user.role in ('admin', 'principal', 'vice_principal') %}
-                        <li><a href="{{ url_for('admin.admin_dashboard') }}" class="admin-link">{{ icons.icon('settings') }} Адмін</a></li>
-                    {% endif %}
                 {% endif %}
             </ul>
         </div>
@@ -102,6 +131,7 @@
                 {% elif current_user.role == 'admin' %}Адміністратор
                 {% elif current_user.role == 'principal' %}Директор
                 {% elif current_user.role == 'parent' %}Батько/мати
+                {% elif current_user.role == 'superuser' %}⚡ Superuser
                 {% else %}{{ current_user.role }}{% endif %}
             </div>
         </div>
@@ -127,14 +157,13 @@
         {% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal') %}
             <li><a href="{{ url_for('materials.list_materials') }}" {% if request.blueprint == 'materials' %}class="active"{% endif %}>📄 Матеріали</a></li>
         {% endif %}
+        <li><a href="{{ url_for('services.gpd_index') }}" {% if request.endpoint == 'services.gpd_index' %}class="active"{% endif %}>🎒 Група подовженого дня</a></li>
+        <li><a href="{{ url_for('services.certificates_index') }}" {% if request.endpoint == 'services.certificates_index' %}class="active"{% endif %}>📑 Електронні довідки</a></li>
         <li>
             <a href="https://mriia.gov.ua/select" target="_blank" rel="noopener">
                 📓 Електронний щоденник ↗
             </a>
         </li>
-        {% if current_user.role in ('admin', 'principal', 'vice_principal') %}
-            <li><a href="{{ url_for('admin.admin_dashboard') }}" class="mobile-nav-admin">⚙️ Адмін-панель</a></li>
-        {% endif %}
         <li class="mobile-nav-divider"></li>
         <li><a href="{{ url_for('auth.logout') }}" class="mobile-nav-logout">🚪 Вийти</a></li>
         {% else %}
@@ -165,7 +194,7 @@
         <div class="footer-grid">
             <div>
                 <h4>Ужгородський ліцей №3</h4>
-                <p>вул. Мінська 27, Ужгород, Закарпатська область, 88000</p>
+                <p><a href="https://maps.app.goo.gl/9tKqN1NaWVzbDDBt6" target="_blank" rel="noopener">Набережна Незалежності, 19, Ужгород, Закарпатська область, 88000</a></p>
                 <p>{{ icons.icon('phone') }} (0312) 61-23-45</p>
                 <p>{{ icons.icon('mail') }} lyceum3@uzhgorod.gov.ua</p>
             </div>
@@ -235,6 +264,62 @@
     // Закрити при переході на посилання
     mobileNav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
 })();
+
+// Theme toggle handler (Light / Dark mode)
+(function initTheme() {
+    // Light background colors that bleed through in dark mode (inline styles)
+    const LIGHT_BG_PATTERNS = [
+        ['#ffffff', '#131c31'], ['#fff', '#131c31'],
+        ['#f8fafc', '#131c31'], ['#f1f5f9', '#1c2844'],
+        ['#eff6ff', '#1a2a4a'], ['#f0f9ff', '#0f2035'],
+        ['#fafafa', '#131c31'], ['#fdfdfd', '#131c31'],
+        ['white', '#131c31'],
+    ];
+    const LIGHT_COLOR_PATTERNS = [
+        ['#0f172a', '#f1f5f9'], ['#1e293b', '#e2e8f0'],
+        ['#334155', '#cbd5e1'], ['#374151', '#d1d5db'],
+        ['#475569', '#94a3b8'], ['#312e81', '#a5b4fc'],
+        ['#1e3a8a', '#93c5fd'], ['#4338ca', '#818cf8'],
+    ];
+
+    function applyDarkInlineFixes(isDark) {
+        if (!isDark) return;
+        document.querySelectorAll('[style]').forEach(el => {
+            const s = el.style;
+            const bg = (s.backgroundColor || s.background || '').toLowerCase();
+            const col = (s.color || '').toLowerCase();
+            for (const [from, to] of LIGHT_BG_PATTERNS) {
+                if (bg === from || bg.includes(from)) {
+                    el.style.backgroundColor = to;
+                    el.style.color = el.style.color || '#f1f5f9';
+                    break;
+                }
+            }
+            for (const [from, to] of LIGHT_COLOR_PATTERNS) {
+                if (col === from) { el.style.color = to; break; }
+            }
+        });
+    }
+
+    function toggleTheme() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const next = isDark ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        document.documentElement.classList.toggle('dark-mode', !isDark);
+        try { localStorage.setItem('theme', next); } catch (_) {}
+        if (next === 'dark') { applyDarkInlineFixes(true); }
+        else { location.reload(); } // simplest way to restore original inline styles
+    }
+
+    document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', toggleTheme);
+    });
+
+    // Apply fixes on page load if dark mode is active
+    if (document.documentElement.getAttribute('data-theme') === 'dark') {
+        document.addEventListener('DOMContentLoaded', () => applyDarkInlineFixes(true));
+    }
+})();
 </script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"
@@ -245,6 +330,7 @@
             {left: '\\\\(', right: '\\\\)', display: false},
             {left: '\\\\[', right: '\\\\]', display: true}
         ],
+        strict: false,
         throwOnError: false
     });">
 </script>

@@ -376,9 +376,9 @@ function renderParticipants(list) {
         if (p.attempt_status === 'finished') {
             const score = p.score !== null ? Math.round(p.score) : '?';
             const max   = p.max_score !== null ? Math.round(p.max_score) : '?';
-            statusHtml = `<span class="p-badge p-badge-done">✓ ${score}/${max}</span>`;
+            statusHtml = `<span class="p-badge p-badge-done">${score}/${max}</span>`;
         } else if (p.attempt_status === 'in_progress') {
-            statusHtml = `<span class="p-badge p-badge-progress">⏱ Проходить</span>`;
+            statusHtml = `<span class="p-badge p-badge-progress">Проходить</span>`;
         } else if (p.attempt_status === 'disqualified') {
             statusHtml = `<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;">
                 <span class="p-badge" style="background:#fee2e2;color:#b91c1c;">🚫 Вилучено</span>
@@ -392,27 +392,29 @@ function renderParticipants(list) {
         }
 
         const initials = (p.full_name || '?').trim()[0].toUpperCase();
-        const exitInfo = p.exit_count > 0
-            ? `<span style="color:#f59e0b;margin-left:5px;font-size:11px;">⚡ ${p.exit_count} вих. / ${(p.exit_duration_seconds||0).toFixed(0)}с</span>`
-            : '';
-        const acBtn = `<button onclick="toggleAnticheat(${p.student_id}, ${p.anticheat_disabled ? 'false' : 'true'})"
+        const exitInfo = p.exit_count > 0 ? `<span style="color:#f59e0b;margin-left:5px;font-size:11px;">Вих. ${p.exit_count} / ${(p.exit_duration_seconds||0).toFixed(0)}с</span>` : '';
+        const pid = p.student_id ? p.student_id : `guest_${p.id}`;
+        const canManage = p.student_id != null;
+        const acBtn = canManage ? `<button onclick="toggleAnticheat(${p.student_id}, ${p.anticheat_disabled ? 'false' : 'true'})"
                 title="${p.anticheat_disabled ? 'Античіт вимкнено — натисніть увімкнути' : 'Античіт увімкнено — натисніть вимкнути'}"
                 style="font-size:11px;padding:2px 6px;background:${p.anticheat_disabled ? '#fef3c7' : '#f0fdf4'};border:1px solid ${p.anticheat_disabled ? '#fde68a' : '#86efac'};border-radius:4px;cursor:pointer;margin-top:3px;">
             ${p.anticheat_disabled ? '🔓 AC вимкнено' : '🔒 AC вкл'}
-        </button>`;
+        </button>` : '';
 
         // Variant badge + change button (shown only if variant assigned)
         const variantBadge = p.variant_number
             ? `<span style="font-size:11px;padding:2px 7px;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:10px;font-weight:600;">В${p.variant_number}</span>
-               <button onclick="changeVariant(${p.student_id}, ${p.variant_number})"
+               ${canManage ? `<button onclick="changeVariant(${p.student_id}, ${p.variant_number})"
                        style="font-size:10px;padding:1px 5px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px;cursor:pointer;color:#64748b;"
-                       title="Змінити варіант">✏️</button>`
+                       title="Змінити варіант">✏️</button>` : ''}`
             : '';
 
-        return `<div class="participant-row" data-id="${p.student_id}">
+        const guestBadge = p.guest_name ? `<span style="font-size:10px;padding:1px 5px;background:#f1f5f9;color:#64748b;border-radius:4px;margin-left:6px;">Гість</span>` : '';
+
+        return `<div class="participant-row" data-id="${pid}">
             <div class="participant-avatar">${initials}</div>
             <div class="participant-info">
-                <div class="participant-name">${escHtml(p.full_name)}</div>
+                <div class="participant-name">${escHtml(p.full_name)}${guestBadge}</div>
                 <div class="participant-time">${(p.joined_at || '').replace('T',' ').substring(0,16)}${exitInfo}</div>
             </div>
             <div class="participant-status" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">

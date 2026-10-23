@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+{% block title %}Столова — Сканування QR{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width:750px;padding:20px 15px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+        <div>
+            <h1 style="font-size:22px;font-weight:700;margin:0 0 3px 0;">🍽️ Столова — облік харчування</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:13px;">{{ today }} · Відмітка видачі обідів</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a href="{{ url_for('lunch.morning_roll') }}" class="btn btn-primary btn-sm">📋 Ранкова відмітка</a>
+            <a href="{{ url_for('lunch.report') }}" class="btn btn-outline btn-sm">📊 Звіт</a>
+            <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline btn-sm">← Кабінет</a>
+        </div>
+    </div>
+
+    <!-- Статус ранкової відмітки -->
+    <div class="card" style="padding:14px 18px;margin-bottom:16px;border-left:4px solid
+        {% if classes_marked >= total_classes and total_classes > 0 %}#10b981{% elif classes_marked > 0 %}#f59e0b{% else %}#ef4444{% endif %};">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <div>
+                <div style="font-size:13.5px;font-weight:700;margin-bottom:2px;">
+                    {% if classes_marked >= total_classes and total_classes > 0 %}
+                        ✅ Всі класи відмічені
+                    {% elif classes_marked > 0 %}
+                        ⏳ Відмічено класів: {{ classes_marked }} / {{ total_classes }}
+                    {% else %}
+                        ⚠️ Ранкова відмітка ще не зроблена
+                    {% endif %}
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);">
+                    Присутніх учнів: {{ total_present }} · QR видано: {{ total_issued }}
+                </div>
+            </div>
+            <a href="{{ url_for('lunch.morning_roll') }}" class="btn btn-outline btn-sm">
+                📋 Відмітити клас
+            </a>
+        </div>
+    </div>
+
+    <!-- Статистика дня -->
+    <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+        <div class="card" style="padding:12px 20px;flex:1;text-align:center;min-width:120px;">
+            <div style="font-size:28px;font-weight:800;color:var(--primary);">{{ fed_count }}</div>
+            <div style="font-size:12px;color:var(--text-muted);">Пообідали</div>
+        </div>
+        <div class="card" style="padding:12px 20px;flex:1;text-align:center;min-width:120px;">
+            <div style="font-size:28px;font-weight:800;color:#10b981;">{{ total_present }}</div>
+            <div style="font-size:12px;color:var(--text-muted);">Присутніх</div>
+        </div>
+        <div class="card" style="padding:12px 20px;flex:1;text-align:center;min-width:120px;">
+            <div style="font-size:28px;font-weight:800;color:#f59e0b;">{{ total_present - fed_count if total_present > fed_count else 0 }}</div>
+            <div style="font-size:12px;color:var(--text-muted);">Ще не їли</div>
+        </div>
+    </div>
+
+    <!-- Результат сканування -->
+    <div id="scan-result" style="display:none;margin-bottom:16px;"></div>
+
+    <!-- СКАНЕР КАМЕРИ ТА ФОТО -->
+    <div class="card" style="padding:18px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <strong style="font-size:15px;">📷 Сканування QR-коду учня</strong>
+            <div style="display:flex;gap:8px;">
+                <button id="btn-start-cam" class="btn btn-primary btn-sm" onclick="toggleCamera()">
+                    🎥 Відео-сканер
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('file-qr-input').click()">
+                    📸 Фото з камери
+                </button>
+                <input type="file" id="file-qr-input" accept="image/*" capture="environment" style="display:none;" onchange="handleFileScan(this)">
+            </div>
+        </div>
+
+        <!-- Відеопотік -->
+        <div id="cam-container" style="display:none;position:relative;margin-bottom:10px;text-align:center;background:#000;border-radius:10px;overflow:hidden;">
+            <video id="cam-video" style="width:100%;max-height:320px;display:block;" autoplay playsinline></video>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:200px;height:200px;border:3px dashed #10b981;border-radius:12px;pointer-events:none;box-shadow:0 0 0 9999px rgba(0,0,0,0.35);"></div>
+        </div>
+        <canvas id="cam-canvas" style="display:none;"></canvas>
+
+        <p id="cam-hint" style="font-size:12.5px;color:var(--text-muted);margin:6px 0 0 0;">
+            Наведіть камеру на QR-код учня або сфотографуйте його кнопкою «Фото з камери».
+        </p>
+    </div>
+
+    <!-- РУЧНЕ ВВЕДЕННЯ КОДУ -->
+    <div class="card" style="padding:16px;margin-bottom:20px;">
+        <strong style="font-size:14px;">⌨️ Ввести код або токен вручну:</strong>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+            <input type="text" id="manual-token" placeholder="Введіть або вставте код токена"
+                   style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:monospace;font-size:14px;background:var(--surface);color:var(--text-main);">
+            <button class="btn btn-primary" onclick="submitToken(document.getElementById('manual-token').value)">
+                ✓ Підтвердити
+            </button>
+        </div>
+    </div>
+
+    <!-- СПИСОК: ОЧІКУЮТЬ ОБІДУ (З КНОПКОЮ ВИДАТИ В 1 КЛІК) -->
+    {% if pending %}
+    {% set waiting = pending | selectattr('used', 'equalto', 0) | list %}
+    {% if waiting %}
+    <div class="card" style="padding:18px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">
+                ⏳ Очікують обіду ({{ waiting|length }})
+            </h3>
+            <input type="text" id="student-search" placeholder="🔍 Швидкий пошук учня..." oninput="filterWaiting(this.value)"
+                   style="padding:6px 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);width:200px;">
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table" id="waiting-table" style="width:100%;border-collapse:collapse;font-size:13.5px;">
+                <thead>
+                    <tr style="border-bottom:1.5px solid var(--border);">
+                        <th style="padding:8px 10px;text-align:left;">Учень</th>
+                        <th style="padding:8px 10px;text-align:left;">Клас</th>
+                        <th style="padding:8px 10px;text-align:center;">Дія</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in waiting %}
+                    <tr class="waiting-row" style="border-bottom:1px solid var(--border);">
+                        <td style="padding:9px 10px;font-weight:600;">{{ r.full_name }}</td>
+                        <td style="padding:9px 10px;color:var(--text-muted);">{{ r.class_name or '—' }}</td>
+                        <td style="padding:9px 10px;text-align:center;">
+                            <form method="POST" action="{{ url_for('lunch.mark_fed', student_id=r.id) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-success" style="font-size:12px;padding:4px 10px;">
+                                    ✓ Видати обід
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Список пообідавших сьогодні -->
+    {% if fed_today %}
+    <div class="card" style="padding:18px;">
+        <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;">✅ Пообідали сьогодні ({{ fed_count }})</h3>
+        <div class="table-responsive">
+            <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                    <tr style="border-bottom:1.5px solid var(--border);">
+                        <th style="padding:8px 10px;text-align:left;">Час</th>
+                        <th style="padding:8px 10px;text-align:left;">Учень</th>
+                        <th style="padding:8px 10px;text-align:left;">Клас</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in fed_today %}
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:8px 10px;font-weight:600;color:#10b981;">{{ r.used_at[11:16] if r.used_at else '—' }}</td>
+                        <td style="padding:8px 10px;font-weight:600;">{{ r.full_name }}</td>
+                        <td style="padding:8px 10px;color:var(--text-muted);">{{ r.class_name or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+let cameraActive = false;
+let videoStream = null;
+let scanLoop = null;
+
+function showResult(data) {
+    const div = document.getElementById('scan-result');
+    const isOk = data.ok;
+    const isAlready = data.already;
+    div.style.cssText = `
+        display:block; padding:16px 20px; border-radius:10px; font-size:15px; font-weight:600;
+        border:2px solid ${isOk ? '#10b981' : (isAlready ? '#f59e0b' : '#ef4444')};
+        background:${isOk ? '#d1fae5' : (isAlready ? '#fef3c7' : '#fee2e2')};
+        color:${isOk ? '#065f46' : (isAlready ? '#92400e' : '#7f1d1d')};
+        margin-bottom:16px;
+    `;
+    if (isOk) {
+        div.innerHTML = `✅ <b>${data.message}</b><br>
+            <span style="font-weight:400;">${data.name}${data.class ? ' · ' + data.class : ''} · Час: ${data.time}</span>`;
+        // Звуковий сигнал успіху
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            osc.frequency.setValueAtTime(800, ctx.currentTime);
+            osc.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.15);
+        } catch(_) {}
+    } else {
+        div.innerHTML = `${data.error}${data.name ? '<br><span style="font-weight:400;">' + data.name + '</span>' : ''}`;
+    }
+    setTimeout(() => { div.style.display = 'none'; }, 6000);
+}
+
+async function submitToken(token) {
+    token = token.trim();
+    if (!token) return;
+    document.getElementById('manual-token').value = '';
+    try {
+        const r = await fetch('{{ url_for("lunch.validate_token") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({token})
+        });
+        const data = await r.json();
+        showResult(data);
+        if (data.ok) {
+            setTimeout(() => location.reload(), 2000);
+        }
+    } catch(e) {
+        showResult({ok: false, error: 'Помилка мережі: ' + e.message});
+    }
+}
+
+function toggleCamera() {
+    if (cameraActive) {
+        stopCamera();
+    } else {
+        startCamera();
+    }
+}
+
+async function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        document.getElementById('cam-hint').innerHTML =
+            '⚠️ <b>Браузер блокує прямий відеопотік без HTTPS на цьому IP.</b><br>' +
+            'Натисніть кнопку <b>«📸 Фото з камери»</b> вище — вона працює завжди!';
+        return;
+    }
+
+    const video = document.getElementById('cam-video');
+    const container = document.getElementById('cam-container');
+    const btn = document.getElementById('btn-start-cam');
+
+    try {
+        videoStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' } }
+        });
+        video.srcObject = videoStream;
+        container.style.display = 'block';
+        btn.textContent = '⏹ Зупинити';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline');
+        cameraActive = true;
+        document.getElementById('cam-hint').textContent = '🔍 Сканування... Тримайте QR-код у рамці';
+        scanLoop = setInterval(scanFrame, 250);
+    } catch(e) {
+        document.getElementById('cam-hint').innerHTML =
+            '⚠️ Камера недоступна (' + e.message + '). Скористайтесь кнопкою <b>«📸 Фото з камери»</b> або введіть код.';
+    }
+}
+
+function stopCamera() {
+    if (videoStream) {
+        videoStream.getTracks().forEach(t => t.stop());
+        videoStream = null;
+    }
+    clearInterval(scanLoop);
+    cameraActive = false;
+    document.getElementById('cam-container').style.display = 'none';
+    const btn = document.getElementById('btn-start-cam');
+    btn.textContent = '🎥 Відео-сканер';
+    btn.classList.remove('btn-outline');
+    btn.classList.add('btn-primary');
+    document.getElementById('cam-hint').textContent = 'Наведіть камеру на QR-код учня або сфотографуйте його.';
+}
+
+function scanFrame() {
+    const video = document.getElementById('cam-video');
+    const canvas = document.getElementById('cam-canvas');
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    if (code && code.data && code.data.length >= 24) {
+        stopCamera();
+        submitToken(code.data);
+    }
+}
+
+// Обробка фото з файлу / камери
+function handleFileScan(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.getElementById('cam-canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code && code.data) {
+                submitToken(code.data);
+            } else {
+                showResult({ok: false, error: '❌ Не вдалося розпізнати QR-код на цьому фото. Спробуйте ще раз.'});
+            }
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+}
+
+function filterWaiting(query) {
+    query = query.toLowerCase().trim();
+    const rows = document.querySelectorAll('.waiting-row');
+    rows.forEach(r => {
+        const text = r.textContent.toLowerCase();
+        r.style.display = text.includes(query) ? '' : 'none';
+    });
+}
+
+document.getElementById('manual-token').addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitToken(e.target.value);
+});
+</script>
+{% endblock %}

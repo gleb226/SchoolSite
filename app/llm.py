@@ -33,6 +33,12 @@ import socket
 import re
 from typing import Any
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 logger = logging.getLogger(__name__)
 
 # ── Read all API keys from environment ────────────────────────────────────────
@@ -55,34 +61,35 @@ GEMINI_KEYS       = _keys('GEMINI_API_KEY')
 OPENROUTER_KEYS   = _keys('OPENROUTER_API_KEY')
 GROQ_KEYS         = _keys('GROQ_API_KEY')
 
-GEMINI_MODEL      = os.environ.get('GEMINI_MODEL', 'gemini-3.6-flash').strip()
+GEMINI_MODEL      = os.environ.get('GEMINI_MODEL', 'gemini-flash-lite-latest').strip()
 GEMINI_FALLBACKS  = [m.strip() for m in
-                     os.environ.get('GEMINI_FALLBACK_MODELS', 'gemini-3.8-flash,gemini-flash-latest').split(',')
+                     os.environ.get('GEMINI_FALLBACK_MODELS', 'gemini-3.1-flash-lite,gemini-flash-latest,gemini-3.5-flash,gemini-3.6-flash,gemini-3.8-flash').split(',')
                      if m.strip()]
 
 # Best free/cheap OpenRouter models (in priority order)
 OPENROUTER_MODELS = [
     m.strip() for m in os.environ.get(
         'OPENROUTER_MODELS',
-        'google/gemini-1.5-flash,'
+        'anthropic/claude-3.5-sonnet,'
+        'google/gemini-pro-1.5,'
         'meta-llama/llama-3.1-8b-instruct:free,'
         'mistralai/mistral-7b-instruct:free'
     ).split(',') if m.strip()
 ]
 
-# Best free Groq models
+# Best free Groq models (supported by Groq API)
 GROQ_MODELS = [
     m.strip() for m in os.environ.get(
         'GROQ_MODELS',
-        'llama-3.3-70b-versatile,'
-        'llama-3.1-70b-versatile,'
-        'mixtral-8x7b-32768,'
-        'gemma2-9b-it'
+        'qwen/qwen3.8-27b,'
+        'openai/gpt-oss-120b,'
+        'openai/gpt-oss-20b,'
+        'allam-2-7b'
     ).split(',') if m.strip()
 ]
 
-TIMEOUT    = int(os.environ.get('LLM_TIMEOUT_SECONDS', '90'))
-RETRIES    = int(os.environ.get('LLM_RETRIES', '2'))
+TIMEOUT    = int(os.environ.get('LLM_TIMEOUT_SECONDS', '35'))
+RETRIES    = int(os.environ.get('LLM_RETRIES', '1'))
 BOT_TOKEN  = os.environ.get('BOT_TOKEN', '').strip()
 ADMIN_TG   = os.environ.get('ADMIN_TELEGRAM_ID', '').strip()
 
@@ -95,7 +102,7 @@ def _tg_alert(message: str) -> None:
     try:
         payload = json.dumps({
             'chat_id': ADMIN_TG,
-            'text': f'🚨 SchoolSite LLM: {message}',
+            'text': f'[SchoolSite LLM] {message}',
             'parse_mode': 'HTML'
         }).encode()
         req = urllib.request.Request(
@@ -112,7 +119,8 @@ def _tg_alert(message: str) -> None:
 # ── Provider implementations ───────────────────────────────────────────────────
 
 def _call_gemini(prompt: str, api_key: str, model: str,
-                 json_mode: bool = False, image_b64: str | None = None) -> str:
+                 json_mode: bool = False, image_b64: str | None = None,
+                 max_output_tokens: int = 4096) -> str:
     """Single Gemini API call. Raises RuntimeError on failure."""
     parts: list[dict] = [{'text': prompt}]
     if image_b64:
@@ -120,7 +128,10 @@ def _call_gemini(prompt: str, api_key: str, model: str,
 
     payload: dict[str, Any] = {
         'contents': [{'parts': parts}],
-        'generationConfig': {'temperature': 0.4}
+        'generationConfig': {
+            'temperature': 0.4,
+            'maxOutputTokens': max_output_tokens,
+        }
     }
     if json_mode:
         payload['generationConfig']['responseMimeType'] = 'application/json'
@@ -143,6 +154,8 @@ def _call_gemini(prompt: str, api_key: str, model: str,
         if text:
             if finish_reason == 'MAX_TOKENS':
                 logger.warning(f'Gemini {model}: MAX_TOKENS truncation, len={len(text)}')
+                # Return partial text — better than failing over to a rate-limited slot
+                return text
             return text
     raise RuntimeError(f'Gemini {model}: no text in response')
 
@@ -168,6 +181,7 @@ def _call_openrouter(prompt: str, api_key: str, model: str,
             'Authorization': f'Bearer {api_key}',
             'HTTP-Referer': 'https://schoolsite.onrender.com',
             'X-Title': 'SchoolSite',
+            'User-Agent': 'SchoolSite/1.0',
         },
         method='POST'
     )
@@ -202,6 +216,7 @@ def _call_groq(prompt: str, api_key: str, model: str,
         headers={
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {api_key}',
+            'User-Agent': 'SchoolSite/1.0',
         },
         method='POST'
     )
@@ -232,8 +247,81 @@ class _ProviderSlot:
         return f'{self.name}/{self.model[:30]}'
 
 
+_MODELS_INITIALIZED = False
+
+def _init_dynamic_models():
+    global _MODELS_INITIALIZED, GEMINI_FALLBACKS, OPENROUTER_MODELS, GROQ_MODELS
+    if _MODELS_INITIALIZED:
+        return
+    _MODELS_INITIALIZED = True
+    
+    # Dynamic Gemini models
+    if GEMINI_KEYS:
+        try:
+            url = f'https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_KEYS[0]}'
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                data = json.loads(resp.read().decode())
+                models = [m['name'].replace('models/', '') for m in data.get('models', []) 
+                          if 'generateContent' in m.get('supportedGenerationMethods', [])]
+                flash_models = [
+                    m for m in models 
+                    if 'flash' in m 
+                    and not any(x in m for x in ('preview', 'tts', 'image', 'omni', 'computer-use', 'robotics'))
+                ]
+                priority = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.8-flash']
+                ordered = [m for m in priority if m in flash_models] + [m for m in flash_models if m not in priority]
+                if ordered:
+                    GEMINI_FALLBACKS = ordered[:6]
+                    logger.info(f"Dynamically loaded Gemini fallbacks: {GEMINI_FALLBACKS}")
+        except Exception as ex:
+            logger.warning(f"Dynamic Gemini model fetch failed: {ex}")
+
+    # Dynamic OpenRouter models (find free ones)
+    if OPENROUTER_KEYS:
+        try:
+            url = 'https://openrouter.ai/api/v1/models'
+            req = urllib.request.Request(url, headers={'User-Agent': 'SchoolSite/1.0'})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                data = json.loads(resp.read().decode())
+                free_models = []
+                for m in data.get('data', []):
+                    pricing = m.get('pricing', {})
+                    if pricing.get('prompt') == "0" and pricing.get('completion') == "0" and ':free' in m['id'].lower():
+                        free_models.append(m['id'])
+                if free_models:
+                    OPENROUTER_MODELS = free_models[:12]
+                    logger.info(f"Dynamically loaded OpenRouter free models: {OPENROUTER_MODELS}")
+        except Exception as ex:
+            logger.warning(f"Dynamic OpenRouter model fetch failed: {ex}")
+
+    # Dynamic Groq models
+    if GROQ_KEYS:
+        try:
+            url = 'https://api.groq.com/openai/v1/models'
+            req = urllib.request.Request(url, headers={
+                'Authorization': f'Bearer {GROQ_KEYS[0]}',
+                'User-Agent': 'SchoolSite/1.0'
+            })
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                data = json.loads(resp.read().decode())
+                # Filter chat models (exclude whisper, guard, etc.)
+                chat_models = [
+                    m['id'] for m in data.get('data', [])
+                    if not any(x in m['id'].lower() for x in ('whisper', 'guard', 'safeguard', 'orpheus', 'embed', 'tts'))
+                ]
+                if chat_models:
+                    # Put qwen and gpt-oss first
+                    pref = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b']
+                    sorted_groq = [m for m in pref if m in chat_models] + [m for m in chat_models if m not in pref]
+                    GROQ_MODELS = sorted_groq
+                    logger.info(f"Dynamically loaded Groq models: {GROQ_MODELS}")
+        except Exception as ex:
+            logger.warning(f"Dynamic Groq model fetch failed: {ex}")
+
 def _build_slots(task: str = 'default') -> list[_ProviderSlot]:
     """Build ordered list of provider slots based on task type."""
+    _init_dynamic_models()
     slots: list[_ProviderSlot] = []
 
     # Gemini slots — best for Ukrainian language, JSON, OCR
@@ -291,13 +379,18 @@ def llm_generate(prompt: str, task: str = 'default',
     if not slots:
         raise RuntimeError('No LLM API keys configured. Add at least GEMINI_API_KEY to .env')
 
+    # Materials need more tokens — lecture notes can be 2000+ words
+    gemini_max_tokens = 8192 if task == 'materials' else 4096
+
     errors: list[str] = []
     for slot in slots:
         for attempt in range(RETRIES + 1):
             try:
                 kwargs: dict[str, Any] = {'json_mode': json_mode}
-                if slot.name == 'Gemini' and image_b64:
-                    kwargs['image_b64'] = image_b64
+                if slot.name == 'Gemini':
+                    kwargs['max_output_tokens'] = gemini_max_tokens
+                    if image_b64:
+                        kwargs['image_b64'] = image_b64
                 result = slot.fn(prompt, slot.key, slot.model, **kwargs)
                 if result:
                     if errors:  # recovered after failures
@@ -308,15 +401,10 @@ def llm_generate(prompt: str, task: str = 'default',
                 err  = f'{slot} HTTP {ex.code}: {body}'
                 logger.warning(f'LLM {err} (attempt {attempt+1})')
                 errors.append(err)
-                if ex.code in (401, 403):
-                    break  # Bad key — skip all attempts for this slot
-                if ex.code == 429:
-                    retry_after = int(ex.headers.get('Retry-After', '0') or '0')
-                    wait = min(retry_after or 15, 30)
-                    if attempt < RETRIES:
-                        time.sleep(wait)
-                        continue
-                break  # Try next slot
+                if ex.code in (401, 403, 404):
+                    break  # Bad key or model not found — skip all attempts for this slot
+                if ex.code in (429, 500, 502, 503, 504):
+                    break  # Service unavailable or quota — immediately fallback to the next model slot!
             except (TimeoutError, socket.timeout) as ex:
                 err = f'{slot} timeout: {ex}'
                 logger.warning(f'LLM {err} (attempt {attempt+1})')
@@ -366,10 +454,14 @@ def llm_ocr(image_b64: str, hint: str = '') -> str:
     Falls back to text-only providers with a description request.
     """
     prompt = (
-        'Розпізнай весь текст на зображенні. '
-        'Поверни тільки розпізнаний текст, зберігаючи структуру (абзаци, списки). '
-        'Якщо є математичні формули — запиши їх у LaTeX ($...$). '
-        + (f'Контекст: {hint}' if hint else '')
+        'Розпізнай ПОВНІСТЮ ТА ДОСЛІВНО весь текст на цьому зображенні (рукописному чи друкованому). '
+        'КРИТИЧНО ВАЖЛИВО:\n'
+        '1. Перепиши абсолютно всі рядки, пункти та підпункти (Римські цифри I, II, III..., арабські 1, 2, 3, літери а, б, в, тире).\n'
+        '2. НЕ скорочуй, НЕ узагальнюй і НЕ пропускай підпункти в дужках чи дрібним почерком!\n'
+        '3. Збережи всі хімічні позначення, індекси, заряди (наприклад: p+, e-, n0), формули, періодичні властивості.\n'
+        '4. Якщо є математичні або хімічні формули — запиши їх у LaTeX ($...$).\n'
+        'Поверни тільки розпізнаний повний текст без пропусків.'
+        + (f'\nКонтекст: {hint}' if hint else '')
     )
     return llm_generate(prompt, task='ocr', image_b64=image_b64)
 

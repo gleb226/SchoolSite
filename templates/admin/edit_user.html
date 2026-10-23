@@ -63,6 +63,7 @@
                     <option value="school_president" {% if user_obj.role == 'school_president' %}selected{% endif %}>Президент школи</option>
                     <option value="vice_principal" {% if user_obj.role == 'vice_principal' %}selected{% endif %}>Завуч</option>
                     <option value="principal" {% if user_obj.role == 'principal' %}selected{% endif %}>Директор</option>
+                    <option value="superuser" {% if user_obj.role == 'superuser' %}selected{% endif %}>⚡ Superuser</option>
                 </select>
             </div>
             <button type="submit" class="btn btn-primary">Зберегти роль</button>

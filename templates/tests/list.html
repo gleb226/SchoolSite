@@ -6,13 +6,10 @@
     <p>Тематичні контрольні роботи, оцінювання та AI-тренажер для самопідготовки</p>
 </div>
 
-{% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal') %}
+{% if current_user.role in ('teacher', 'class_teacher', 'admin', 'principal', 'vice_principal') %}
     <div style="margin-bottom: 25px; display: flex; gap: 10px; flex-wrap: wrap;">
         <a href="{{ url_for('tests.create_test') }}" class="btn btn-primary" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border: none;">
-            {{ icons.icon('sparkles') }} Створити тест з AI
-        </a>
-        <a href="{{ url_for('tests.create_test') }}" class="btn btn-outline">
-            + Створити тест вручну
+            {{ icons.icon('file-check') }} Створити тест
         </a>
     </div>
 {% endif %}

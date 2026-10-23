@@ -24,7 +24,7 @@ def check_password(password: str, hashed: str) -> bool:
 def generate_jwt(user_id: int, role: str) -> str:
     secret = current_app.config['SECRET_KEY']
     algo = current_app.config.get('JWT_ALGORITHM', 'HS256')
-    hours = current_app.config.get('JWT_EXPIRY_HOURS', 24)
+    hours = current_app.config.get('JWT_EXPIRY_HOURS', 720)  # 30 days
     payload = {
         'user_id': user_id,
         'role': role,
@@ -37,7 +37,7 @@ def generate_jwt(user_id: int, role: str) -> str:
 def set_auth_cookie(response, token: str):
     response.set_cookie(
         'auth_token', token,
-        httponly=True, secure=False, samesite='Lax', max_age=86400
+        httponly=True, secure=False, samesite='Lax', max_age=2592000  # 30 days
     )
     return response
 
@@ -61,6 +61,10 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not g.get('current_user'):
+            # For AJAX/API requests return JSON instead of HTML redirect
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.path.startswith('/api/') or '/api/' in request.path:
+                from flask import jsonify
+                return jsonify({'error': 'Необхідно увійти в систему', 'redirect': url_for('auth.login')}), 401
             return redirect(url_for('auth.login', next=request.url))
         return f(*args, **kwargs)
     return decorated
@@ -72,7 +76,13 @@ def role_required(*roles):
         def decorated(*args, **kwargs):
             user = g.get('current_user')
             if not user:
+                if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or '/api/' in request.path:
+                    from flask import jsonify
+                    return jsonify({'error': 'Необхідно увійти в систему', 'redirect': url_for('auth.login')}), 401
                 return redirect(url_for('auth.login'))
+            # superuser проходить будь-яку перевірку ролі
+            if user['role'] == 'superuser':
+                return f(*args, **kwargs)
             if user['role'] not in roles:
                 from flask import abort
                 abort(403)
@@ -87,7 +97,8 @@ def approved_required(f):
         user = g.get('current_user')
         if not user:
             return redirect(url_for('auth.login'))
-        if user.get('is_approved'):
+        # superuser завжди approved
+        if user['role'] == 'superuser' or user.get('is_approved'):
             return f(*args, **kwargs)
         from flask import render_template
         return render_template('auth/pending.html'), 403

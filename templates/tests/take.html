@@ -684,14 +684,6 @@ async function submitTest(auto = false) {
         }
     }
 
-    if (IS_GUEST) {
-        // Guest: no server-side grading, just show "submitted" message
-        exitFS();
-        alert(`✓ ${GUEST_NAME}, ваші відповіді надіслано!\nРезультати оголосить вчитель.`);
-        window.location.href = '/';
-        return;
-    }
-
     try {
         const resp = await fetch(`/api/test/${TEST_ID}/submit`, {
             method: 'POST',
@@ -701,14 +693,20 @@ async function submitTest(auto = false) {
         const data = await resp.json();
         exitFS();
         if (!data.disqualified) {
-            alert(`✓ Тест надіслано!\nВаш бал: ${data.score} / ${data.max_score} (${data.percentage}%)`);
+            alert(`✓ ${IS_GUEST ? GUEST_NAME + ', ' : ''}Тест надіслано!\nВаш бал: ${data.score} / ${data.max_score} (${data.percentage}%)`);
+        } else {
+            alert(data.message || 'Спробу анульовано.');
         }
     } catch(e) {
         alert('Помилка відправки. Спробуйте ще раз.');
         submitted = false;
         return;
     }
-    window.location.href = `/tests/results/${TEST_ID}`;
+    if (IS_GUEST) {
+        window.location.href = '/';
+    } else {
+        window.location.href = `/tests/results/${TEST_ID}`;
+    }
 }
 
 document.getElementById('submit-btn').addEventListener('click', () => {

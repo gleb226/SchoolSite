@@ -1,0 +1,518 @@
+<script>
+    if (typeof escapeHtml !== 'function') {
+        window.escapeHtml = function(value) {
+            return String(value ?? '').replace(/[\u0026\u003c\u003e\"']/g, ch => ({'\u0026':'\u0026amp;','\u003c':'\u0026lt;','\u003e':'\u0026gt;','\"':'\u0026quot;','\'':'\u0026#39;'}[ch]));
+        };
+    }
+    // ══════════════════════════════════════════════════════════════════════════
+    // FORMULA PALETTE — all school formulas 1–11 class, grouped by category
+    // ══════════════════════════════════════════════════════════════════════════
+    const FORMULA_CATEGORIES = [
+      {
+        name: '🔢 Числа і дії',
+        items: [
+          { label: '±',     title: 'Плюс-мінус',          tpl: '$\\pm$' },
+          { label: '≠',     title: 'Не рівно',             tpl: '$\\neq$' },
+          { label: '≤',     title: '≤ (менше або рівно)',  tpl: '$\\leq$' },
+          { label: '≥',     title: '≥ (більше або рівно)', tpl: '$\\geq$' },
+          { label: '≈',     title: 'Приблизно',            tpl: '$\\approx$' },
+          { label: '∞',     title: 'Нескінченність',       tpl: '$\\infty$' },
+          { label: '|x|',   title: 'Модуль',               tpl: '$|x|$' },
+          { label: '⌊x⌋',  title: 'Ціла частина',         tpl: '$\\lfloor x \\rfloor$' },
+          { label: 'n!',    title: 'Факторіал',            tpl: '$n!$' },
+          { label: 'Cₙᵏ',  title: 'Біном. коефіцієнт',   tpl: '$C_n^k$' },
+        ]
+      },
+      {
+        name: '🔡 Степені і корені',
+        items: [
+          { label: 'x²',    title: 'Квадрат',              tpl: 'DIALOG_SQ',    dialog: { type:'sq' } },
+          { label: 'xⁿ',   title: 'Степінь n',            tpl: 'DIALOG_POW',   dialog: { type:'pow' } },
+          { label: '√x',   title: 'Квадратний корінь',    tpl: 'DIALOG_SQRT',  dialog: { type:'sqrt' } },
+          { label: '∛x',   title: 'Кубічний корінь',      tpl: '$\\sqrt[3]{x}$' },
+          { label: 'ⁿ√x',  title: 'Корінь n-го ступеня', tpl: 'DIALOG_NROOT', dialog: { type:'nroot' } },
+          { label: 'x⁻¹',  title: 'Обернене',             tpl: '$x^{-1}$' },
+          { label: 'xⁿ/ᵐ', title: 'Дробовий степінь',    tpl: 'DIALOG_FRAC_POW', dialog: { type:'fracpow' } },
+        ]
+      },
+      {
+        name: '➗ Дроби',
+        items: [
+          { label: 'a/b',   title: 'Звичайний дріб',       tpl: 'DIALOG_FRAC', dialog: { type:'frac' } },
+          { label: 'a⁻¹',  title: 'Обернений дріб',       tpl: '$\\frac{1}{a}$' },
+          { label: 'xₙ',   title: 'Нижній індекс',        tpl: 'DIALOG_IDX',  dialog: { type:'idx' } },
+        ]
+      },
+      {
+        name: '📐 Алгебра',
+        items: [
+          { label: 'D=…',   title: 'Дискримінант',         tpl: '$D = b^{2} - 4ac$' },
+          { label: 'x₁₂',  title: 'Формула коренів квадр. рів.', tpl: '$x_{1,2} = \\dfrac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$' },
+          { label: 'Vієта', title: 'Теорема Вієта',        tpl: '$x_1 + x_2 = -\\dfrac{b}{a},\\quad x_1 x_2 = \\dfrac{c}{a}$' },
+          { label: '(a+b)²',title: 'Квадрат суми',        tpl: '$(a+b)^2 = a^2 + 2ab + b^2$' },
+          { label: '(a-b)²',title: 'Квадрат різниці',     tpl: '$(a-b)^2 = a^2 - 2ab + b^2$' },
+          { label: 'a²-b²', title: 'Різниця квадратів',   tpl: '$a^2 - b^2 = (a-b)(a+b)$' },
+          { label: '(a+b)³',title: 'Куб суми',            tpl: '$(a+b)^3 = a^3 + 3a^2b + 3ab^2 + b^3$' },
+          { label: 'a³-b³', title: 'Різниця кубів',       tpl: '$a^3 - b^3 = (a-b)(a^2+ab+b^2)$' },
+          { label: 'a³+b³', title: 'Сума кубів',          tpl: '$a^3 + b^3 = (a+b)(a^2-ab+b^2)$' },
+          { label: '∑',     title: 'Сума',                 tpl: '$\\sum_{i=1}^{n} i$' },
+          { label: 'AP sₙ', title: 'Сума арифм. прогр.',  tpl: '$S_n = \\dfrac{n(a_1 + a_n)}{2}$' },
+          { label: 'GP sₙ', title: 'Сума геом. прогр.',   tpl: '$S_n = a_1 \\cdot \\dfrac{q^n - 1}{q - 1}$' },
+        ]
+      },
+      {
+        name: '📏 Геометрія',
+        items: [
+          { label: 'S□',    title: 'Площа прямокутника',  tpl: '$S = a \\cdot b$' },
+          { label: 'S△',    title: 'Площа трикутника',    tpl: '$S = \\dfrac{1}{2} a h$' },
+          { label: 'S Герон',title: 'Формула Герона',     tpl: '$S = \\sqrt{p(p-a)(p-b)(p-c)},\\; p=\\dfrac{a+b+c}{2}$' },
+          { label: 'S○',    title: 'Площа круга',         tpl: '$S = \\pi r^2$' },
+          { label: 'C○',    title: 'Довжина кола',        tpl: '$C = 2\\pi r$' },
+          { label: 'Піфаг', title: 'Теорема Піфагора',   tpl: '$a^2 + b^2 = c^2$' },
+          { label: 'V куб', title: 'Об\'єм куба',         tpl: '$V = a^3$' },
+          { label: 'V цил', title: 'Об\'єм циліндра',     tpl: '$V = \\pi r^2 h$' },
+          { label: 'V кул', title: 'Об\'єм кулі',         tpl: '$V = \\dfrac{4}{3}\\pi r^3$' },
+          { label: 'S пов', title: 'Поверхня кулі',       tpl: '$S = 4\\pi r^2$' },
+          { label: 'V кон', title: 'Об\'єм конуса',       tpl: '$V = \\dfrac{1}{3}\\pi r^2 h$' },
+          { label: 'd стр', title: 'Відстань між точками', tpl: '$d = \\sqrt{(x_2-x_1)^2+(y_2-y_1)^2}$' },
+          { label: 'cos th',title: 'Теорема косинусів',   tpl: '$c^2 = a^2 + b^2 - 2ab\\cos C$' },
+          { label: 'sin th',title: 'Теорема синусів',     tpl: '$\\dfrac{a}{\\sin A} = \\dfrac{b}{\\sin B} = 2R$' },
+        ]
+      },
+      {
+        name: '📐 Тригонометрія',
+        items: [
+          { label: 'sin',   title: 'Синус',               tpl: '$\\sin x$' },
+          { label: 'cos',   title: 'Косинус',             tpl: '$\\cos x$' },
+          { label: 'tg',    title: 'Тангенс',             tpl: '$\\tan x$' },
+          { label: 'ctg',   title: 'Котангенс',           tpl: '$\\cot x$' },
+          { label: 'arcsin',title: 'Арксинус',            tpl: '$\\arcsin x$' },
+          { label: 'arccos',title: 'Арккосинус',          tpl: '$\\arccos x$' },
+          { label: 'arctg', title: 'Арктангенс',          tpl: '$\\arctan x$' },
+          { label: 'sin²+cos²',title: 'Основна тожд.',   tpl: '$\\sin^2 x + \\cos^2 x = 1$' },
+          { label: 'sin 2x',title: 'sin подвійного',      tpl: '$\\sin 2x = 2\\sin x \\cos x$' },
+          { label: 'cos 2x',title: 'cos подвійного',      tpl: '$\\cos 2x = \\cos^2 x - \\sin^2 x$' },
+          { label: 'sin(a±b)',title: 'Сума кутів sin',   tpl: '$\\sin(a \\pm b) = \\sin a\\cos b \\pm \\cos a\\sin b$' },
+          { label: 'cos(a±b)',title: 'Сума кутів cos',   tpl: '$\\cos(a \\pm b) = \\cos a\\cos b \\mp \\sin a\\sin b$' },
+          { label: 'π',     title: 'Пі',                  tpl: '$\\pi$' },
+        ]
+      },
+      {
+        name: '📈 Показникова та логарифмічна',
+        items: [
+          { label: 'aˣ',    title: 'Показникова функція', tpl: '$a^x$' },
+          { label: 'eˣ',    title: 'Натуральна показн.',  tpl: '$e^x$' },
+          { label: 'log',   title: 'Логарифм',            tpl: 'DIALOG_LOG',   dialog: { type:'log' } },
+          { label: 'lg',    title: 'Десятковий логарифм', tpl: '$\\lg x$' },
+          { label: 'ln',    title: 'Натуральний логарифм',tpl: '$\\ln x$' },
+          { label: 'log(ab)',title: 'log суми',           tpl: '$\\log_a(xy) = \\log_a x + \\log_a y$' },
+          { label: 'log(a/b)',title: 'log різниці',       tpl: '$\\log_a\\dfrac{x}{y} = \\log_a x - \\log_a y$' },
+          { label: 'log xⁿ',title: 'log степеня',        tpl: '$\\log_a x^n = n \\log_a x$' },
+          { label: 'формула переходу',title: 'Заміна основи', tpl: '$\\log_a b = \\dfrac{\\log_c b}{\\log_c a}$' },
+        ]
+      },
+      {
+        name: "∂ Похідна і інтеграл (10–11 кл.)",
+        items: [
+          { label: "f'(x)", title: 'Похідна',             tpl: "$f'(x)$" },
+          { label: "(xⁿ)'", title: '(xⁿ)\'= nxⁿ⁻¹',    tpl: "$(x^n)' = nx^{n-1}$" },
+          { label: "(sin)'",title: 'Похідна sin',         tpl: "$(\\sin x)' = \\cos x$" },
+          { label: "(cos)'",title: 'Похідна cos',         tpl: "$(\\cos x)' = -\\sin x$" },
+          { label: "(eˣ)'", title: 'Похідна eˣ',         tpl: "$(e^x)' = e^x$" },
+          { label: "(ln)'", title: 'Похідна ln',          tpl: "$(\\ln x)' = \\dfrac{1}{x}$" },
+          { label: "(uv)'", title: 'Похідна добутку',     tpl: "$(uv)' = u'v + uv'$" },
+          { label: "(u/v)'",title: 'Похідна частки',      tpl: "\\left(\\dfrac{u}{v}\\right)' = \\dfrac{u'v - uv'}{v^2}" },
+          { label: '∫xⁿ',  title: 'Інтеграл xⁿ',        tpl: '$\\int x^n\\,dx = \\dfrac{x^{n+1}}{n+1} + C$' },
+          { label: '∫sin',  title: 'Інтеграл sin',        tpl: '$\\int \\sin x\\,dx = -\\cos x + C$' },
+          { label: '∫cos',  title: 'Інтеграл cos',        tpl: '$\\int \\cos x\\,dx = \\sin x + C$' },
+          { label: '∫eˣ',  title: 'Інтеграл eˣ',         tpl: '$\\int e^x\\,dx = e^x + C$' },
+          { label: '∫1/x',  title: 'Інтеграл 1/x',       tpl: '$\\int \\dfrac{1}{x}\\,dx = \\ln|x| + C$' },
+          { label: '∫ᵃᵇ',   title: 'Визначений інтеграл', tpl: '$\\int_a^b f(x)\\,dx$' },
+          { label: 'Ньютон', title: 'Формула Ньютона-Лейбніца', tpl: '$\\int_a^b f(x)\\,dx = F(b) - F(a)$' },
+        ]
+      },
+      {
+        name: '⚗️ Фізика',
+        items: [
+          { label: 'v=s/t',  title: 'Швидкість',           tpl: '$v = \\dfrac{s}{t}$' },
+          { label: 'F=ma',   title: '2-й закон Ньютона',   tpl: '$F = ma$' },
+          { label: 'p=mv',   title: 'Імпульс',             tpl: '$p = mv$' },
+          { label: 'Ek',     title: 'Кінетична енергія',   tpl: '$E_k = \\dfrac{mv^2}{2}$' },
+          { label: 'Ep',     title: 'Потенційна енергія',  tpl: '$E_p = mgh$' },
+          { label: 'W=Fs',   title: 'Робота',              tpl: '$W = Fs\\cos\\alpha$' },
+          { label: 'P=W/t',  title: 'Потужність',          tpl: '$P = \\dfrac{W}{t}$' },
+          { label: 'η',      title: 'ККД',                 tpl: '$\\eta = \\dfrac{A_{кор}}{A_{повн}} \\cdot 100\\%$' },
+          { label: 'ρ=m/V',  title: 'Густина',             tpl: '$\\rho = \\dfrac{m}{V}$' },
+          { label: 'p=F/S',  title: 'Тиск',                tpl: '$p = \\dfrac{F}{S}$' },
+          { label: "Архімед",title: 'Сила Архімеда',       tpl: '$F_A = \\rho g V$' },
+          { label: 'Q=mcΔT', title: 'Кількість теплоти',  tpl: '$Q = mc\\Delta T$' },
+          { label: 'U=IR',   title: 'Закон Ома',           tpl: '$U = IR$' },
+          { label: 'P=UI',   title: 'Потужність струму',   tpl: '$P = UI$' },
+          { label: 'λ=c/ν',  title: 'Довжина хвилі',      tpl: '$\\lambda = \\dfrac{c}{\\nu}$' },
+          { label: 'E=mc²',  title: 'Рівняння Ейнштейна', tpl: '$E = mc^2$' },
+        ]
+      },
+      {
+        name: '🧪 Хімія',
+        items: [
+          { label: 'M=m/n',  title: 'Молярна маса',        tpl: '$M = \\dfrac{m}{n}$' },
+          { label: 'n=m/M',  title: 'Кількість речовини',  tpl: '$n = \\dfrac{m}{M}$' },
+          { label: 'N=nNₐ',  title: 'Число молекул',       tpl: '$N = n \\cdot N_A$' },
+          { label: 'PV=nRT', title: 'Рівняння Менделєєва-Клапейрона', tpl: '$PV = nRT$' },
+          { label: 'ω',      title: 'Масова частка',       tpl: '$\\omega = \\dfrac{m_{речовини}}{m_{розчину}} \\cdot 100\\%$' },
+          { label: 'c=n/V',  title: 'Молярна концентрація',tpl: '$c = \\dfrac{n}{V}$' },
+          { label: 'Rзаг',   title: 'Закон зб. маси',      tpl: '$\\sum m_{реаг} = \\sum m_{прод}$' },
+          { label: 'pH',     title: 'pH розчину',          tpl: '$\\text{pH} = -\\lg[\\text{H}^+]$' },
+        ]
+      },
+      {
+        name: '→ Вектори',
+        items: [
+          { label: 'vec a', title: 'Вектор',               tpl: '$\\vec{a}$' },
+          { label: '|a|',  title: 'Довжина вектора',       tpl: '$|\\vec{a}|$' },
+          { label: 'a·b',  title: 'Скалярний добуток',     tpl: '$\\vec{a} \\cdot \\vec{b} = |\\vec{a}||\\vec{b}|\\cos\\theta$' },
+          { label: 'a×b',  title: 'Векторний добуток',     tpl: '$|\\vec{a} \\times \\vec{b}| = |\\vec{a}||\\vec{b}|\\sin\\theta$' },
+        ]
+      },
+    ];
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // FORMULA POPUP — global singleton
+    // ══════════════════════════════════════════════════════════════════════════
+    (function buildFormulaPopup() {
+        // Overlay backdrop
+        const backdrop = document.createElement('div');
+        backdrop.id = 'formula-backdrop';
+        backdrop.style.cssText = 'display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.45);';
+        document.body.appendChild(backdrop);
+
+        // Popup panel
+        const popup = document.createElement('div');
+        popup.id = 'formula-popup';
+        popup.style.cssText = `
+            display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+            z-index:9001;background:#fff;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.3);
+            width:min(680px,96vw);max-height:82vh;overflow:hidden;
+            display:none;flex-direction:column;`;
+        popup.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
+                        border-bottom:1px solid #e2e8f0;background:#f8fafc;border-radius:12px 12px 0 0;">
+                <strong style="font-size:16px;">∑ Вставити формулу</strong>
+                <button id="formula-popup-close" type="button"
+                        style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1;">&times;</button>
+            </div>
+            <div style="display:flex;flex:1;overflow:hidden;">
+                <!-- category list -->
+                <div id="fcat-list" style="width:175px;flex-shrink:0;overflow-y:auto;
+                     border-right:1px solid #e2e8f0;padding:8px 0;background:#f1f5f9;"></div>
+                <!-- formula grid -->
+                <div style="flex:1;overflow-y:auto;padding:14px 12px;">
+                    <div id="fcat-title" style="font-weight:700;color:#1e3a5f;margin-bottom:10px;font-size:14px;"></div>
+                    <div id="fformula-grid" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                </div>
+            </div>
+            <div id="formula-preview-bar" style="padding:10px 18px;background:#f0f9ff;
+                 border-top:1px solid #bae6fd;font-size:14px;color:#0c4a6e;min-height:44px;
+                 display:flex;align-items:center;gap:10px;">
+                <span style="color:#64748b;font-size:12px;">Наведіть на формулу для перегляду</span>
+            </div>`;
+        document.body.appendChild(popup);
+
+        // Mini-dialog for parameterized formulas
+        const miniDialog = document.createElement('div');
+        miniDialog.id = 'formula-mini-dialog';
+        miniDialog.style.cssText = `
+            display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+            z-index:9100;background:#fff;border-radius:10px;box-shadow:0 6px 30px rgba(0,0,0,.35);
+            padding:22px 26px;width:min(360px,90vw);`;
+        document.body.appendChild(miniDialog);
+
+        const catList    = popup.querySelector('#fcat-list');
+        const catTitle   = popup.querySelector('#fcat-title');
+        const formulaGrid= popup.querySelector('#fformula-grid');
+        const previewBar = popup.querySelector('#formula-preview-bar');
+        let activeTarget = null;  // the input to insert into
+
+        // Build category sidebar
+        FORMULA_CATEGORIES.forEach((cat, ci) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.dataset.ci = ci;
+            btn.textContent = cat.name;
+            btn.style.cssText = `display:block;width:100%;text-align:left;padding:9px 14px;
+                border:none;background:none;cursor:pointer;font-size:12px;line-height:1.3;
+                border-left:3px solid transparent;`;
+            btn.addEventListener('click', () => showCategory(ci));
+            catList.appendChild(btn);
+        });
+
+        function showCategory(ci) {
+            catList.querySelectorAll('button').forEach((b,i) => {
+                b.style.background = i === ci ? '#dbeafe' : 'none';
+                b.style.borderLeftColor = i === ci ? '#3b82f6' : 'transparent';
+                b.style.fontWeight = i === ci ? '700' : '400';
+            });
+            const cat = FORMULA_CATEGORIES[ci];
+            catTitle.textContent = cat.name;
+            formulaGrid.innerHTML = '';
+            cat.items.forEach(item => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.title = item.title;
+                btn.style.cssText = `padding:7px 12px;font-size:13px;border:1px solid #cbd5e1;
+                    border-radius:6px;background:#f8fafc;cursor:pointer;white-space:nowrap;
+                    transition:background .15s;`;
+                btn.textContent = item.label;
+                btn.addEventListener('mouseenter', () => {
+                    btn.style.background = '#dbeafe';
+                    const tpl = item.tpl.startsWith('DIALOG_') ? '(відкриє діалог введення)' : item.tpl;
+                    previewBar.innerHTML = `<span style="font-size:11px;color:#64748b;">${escapeHtml(item.title)}:</span>&nbsp;`;
+                    if (!tpl.startsWith('(')) {
+                        const span = document.createElement('span');
+                        span.textContent = tpl;
+                        previewBar.appendChild(span);
+                        if (window.renderMathInElement) {
+                            renderMathInElement(span, {
+                                delimiters:[{left:'$',right:'$',display:false},{left:'$$',right:'$$',display:true}],
+                                throwOnError:false
+                            });
+                        }
+                    } else {
+                        previewBar.innerHTML += `<em style="color:#64748b;">${tpl}</em>`;
+                    }
+                });
+                btn.addEventListener('mouseleave', () => { btn.style.background = '#f8fafc'; });
+                btn.addEventListener('click', () => handleFormulaClick(item));
+                formulaGrid.appendChild(btn);
+            });
+        }
+
+        function handleFormulaClick(item) {
+            if (!activeTarget) return;
+            if (item.tpl.startsWith('DIALOG_')) {
+                openMiniDialog(item, activeTarget);
+            } else {
+                insertAtCursor(activeTarget, item.tpl);
+                closePopup();
+            }
+        }
+
+        // ── Mini dialog for parameterized formulas ─────────────────────────
+        function openMiniDialog(item, target) {
+            const dtype = item.dialog.type;
+            let html = '';
+            if (dtype === 'sq') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">x² — Квадрат числа або виразу</div>
+                    <div style="margin-bottom:10px;"><label style="font-size:13px;">Основа (x):</label>
+                    <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'pow') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">xⁿ — Степінь</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Основа (x):</label>
+                        <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Показник (n):</label>
+                        <input id="md-b" class="md-inp" value="n" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'sqrt') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">√x — Квадратний корінь</div>
+                    <div style="margin-bottom:10px;"><label style="font-size:13px;">Вираз під коренем:</label>
+                    <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'nroot') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">ⁿ√x — Корінь n-го степеня</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Степінь (n):</label>
+                        <input id="md-b" class="md-inp" value="n" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Вираз під коренем:</label>
+                        <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'frac') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">a/b — Дріб</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Чисельник (a):</label>
+                        <input id="md-a" class="md-inp" value="a" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Знаменник (b):</label>
+                        <input id="md-b" class="md-inp" value="b" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'fracpow') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">xⁿ/ᵐ — Дробовий степінь</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Основа (x):</label>
+                        <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Числ. (n):</label>
+                        <input id="md-b" class="md-inp" value="n" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Знамен. (m):</label>
+                        <input id="md-c" class="md-inp" value="m" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'log') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">logₐ(b) — Логарифм</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Основа (a):</label>
+                        <input id="md-a" class="md-inp" value="a" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Аргумент (b):</label>
+                        <input id="md-b" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            } else if (dtype === 'idx') {
+                html = `<div style="font-weight:700;margin-bottom:12px;">xₙ — Нижній індекс</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:13px;">Змінна (x):</label>
+                        <input id="md-a" class="md-inp" value="x" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                        <div><label style="font-size:13px;">Індекс (n):</label>
+                        <input id="md-b" class="md-inp" value="n" style="width:100%;margin-top:4px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:15px;"></div>
+                    </div>
+                    <div id="md-preview" style="margin-bottom:14px;padding:8px;background:#f0f9ff;border-radius:6px;min-height:32px;text-align:center;font-size:16px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button type="button" id="md-cancel" class="btn btn-outline btn-sm">Скасувати</button>
+                        <button type="button" id="md-ok" class="btn btn-primary btn-sm">Вставити</button>
+                    </div>`;
+            }
+
+            miniDialog.innerHTML = html;
+            miniDialog.style.display = 'block';
+
+            function buildLatex() {
+                const a = miniDialog.querySelector('#md-a')?.value || '';
+                const b = miniDialog.querySelector('#md-b')?.value || '';
+                const c = miniDialog.querySelector('#md-c')?.value || '';
+                switch (dtype) {
+                    case 'sq':       return `$${a}^{2}$`;
+                    case 'pow':      return `$${a}^{${b}}$`;
+                    case 'sqrt':     return `$\\sqrt{${a}}$`;
+                    case 'nroot':    return `$\\sqrt[${b}]{${a}}$`;
+                    case 'frac':     return `$\\frac{${a}}{${b}}$`;
+                    case 'fracpow':  return `$${a}^{\\frac{${b}}{${c}}}$`;
+                    case 'log':      return `$\\log_{${a}}(${b})$`;
+                    case 'idx':      return `$${a}_{${b}}$`;
+                }
+                return '';
+            }
+
+            function updateMdPreview() {
+                const prev = miniDialog.querySelector('#md-preview');
+                if (!prev) return;
+                const latex = buildLatex();
+                prev.textContent = latex;
+                if (window.renderMathInElement) {
+                    renderMathInElement(prev, {
+                        delimiters:[{left:'$',right:'$',display:false},{left:'$$',right:'$$',display:true}],
+                        throwOnError:false
+                    });
+                }
+            }
+
+            miniDialog.querySelectorAll('.md-inp').forEach(inp => {
+                inp.addEventListener('input', updateMdPreview);
+            });
+            updateMdPreview();
+
+            miniDialog.querySelector('#md-cancel').addEventListener('click', () => {
+                miniDialog.style.display = 'none';
+            });
+            miniDialog.querySelector('#md-ok').addEventListener('click', () => {
+                const latex = buildLatex();
+                if (latex && target) {
+                    insertAtCursor(target, latex);
+                }
+                miniDialog.style.display = 'none';
+                closePopup();
+            });
+
+            // Focus first input
+            miniDialog.querySelector('#md-a, #md-b')?.focus();
+        }
+
+        function insertAtCursor(input, text) {
+            if (typeof input === 'function') {
+                input(text);
+                return;
+            }
+            if (input && input.insertText && typeof input.insertText === 'function') {
+                input.insertText(text);
+                return;
+            }
+            const s = input.selectionStart;
+            const e = input.selectionEnd;
+            input.value = input.value.substring(0, s) + text + input.value.substring(e);
+            const newPos = s + text.length;
+            input.setSelectionRange(newPos, newPos);
+            input.focus();
+            updatePreview(input);
+        }
+
+        function closePopup() {
+            popup.style.display = 'none';
+            backdrop.style.display = 'none';
+        }
+
+        popup.querySelector('#formula-popup-close').addEventListener('click', closePopup);
+        backdrop.addEventListener('click', closePopup);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePopup(); miniDialog.style.display='none'; } });
+
+        // Public API
+        window._formulaPopup = {
+            open(targetInput) {
+                activeTarget = targetInput;
+                popup.style.cssText = popup.style.cssText.replace('display:none', 'display:flex');
+                popup.style.display = 'flex';
+                backdrop.style.display = 'block';
+                showCategory(0);
+            }
+        };
+    })();
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // LIVE PREVIEW for any input containing $ or \
+    // ══════════════════════════════════════════════════════════════════════════
+    function updatePreview(input) {
+        const preview = input._katexPreview;
+        if (!preview) return;
+        const raw = input.value.trim();
+        if (!raw) { preview.innerHTML = ''; preview.style.display='none'; return; }
+        const hasMath = raw.includes('$') || raw.includes('\\');
+        preview.style.display = hasMath ? 'block' : 'none';
+        if (!hasMath) return;
+        try {
+            preview.textContent = raw;
+            if (window.renderMathInElement) {
+                renderMathInElement(preview, {
+                    delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],
+                    throwOnError:false
+                });
+            }
+        } catch(e) {}
+    }
+</script>

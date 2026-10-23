@@ -18,6 +18,7 @@ ROLE_LABELS = {
     'class_president': 'Президент класу',
     'school_president': 'Президент школи',
     'admin': 'Адміністратор',
+    'superuser': '⚡ Superuser',
 }
 
 
@@ -57,6 +58,7 @@ def login():
                         logger.warning(f'Could not send 2FA: {e}')
                     session['pending_2fa_user'] = user['id']
                     return redirect(url_for('auth.verify_2fa'))
+                session.permanent = True
                 token = generate_jwt(user['id'], user['role'])
                 resp = make_response(redirect(url_for('dashboard.dashboard')))
                 set_auth_cookie(resp, token)

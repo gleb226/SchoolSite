@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Ранкова відмітка харчування{% endblock %}
+{% block content %}
+<div class="container" style="max-width:700px;padding:20px 15px;">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+        <div>
+            <h1 style="font-size:20px;font-weight:700;margin:0 0 3px 0;">🍽️ Ранкова відмітка харчування</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:13px;">{{ today }}</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <a href="{{ url_for('lunch.canteen') }}" class="btn btn-outline btn-sm">📷 Столова</a>
+            <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline btn-sm">← Кабінет</a>
+        </div>
+    </div>
+
+    <!-- Вибір класу -->
+    <div class="card" style="padding:14px 18px;margin-bottom:16px;">
+        <form method="GET" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <label style="font-size:14px;font-weight:600;white-space:nowrap;">Клас:</label>
+            <select name="class_id" onchange="this.form.submit()"
+                    style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-main);font-size:14px;">
+                {% for cls in classes %}
+                <option value="{{ cls.id }}" {% if cls.id == class_id %}selected{% endif %}>
+                    {{ cls.name }}
+                </option>
+                {% endfor %}
+            </select>
+            {% if already_marked %}
+            <span style="font-size:12px;background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:20px;border:1px solid #a7f3d0;">
+                ✓ Відмітку вже зроблено
+            </span>
+            {% endif %}
+        </form>
+    </div>
+
+    {% if students %}
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="class_id" value="{{ class_id }}">
+        <input type="hidden" name="date" value="{{ today }}">
+
+        <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px;">
+            <!-- Шапка з кнопками "всі/ніхто" -->
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                <strong style="font-size:14px;">Учні ({{ students|length }})</strong>
+                <div style="display:flex;gap:6px;">
+                    <button type="button" onclick="setAll(true)"
+                            class="btn btn-outline btn-sm">✓ Всі присутні</button>
+                    <button type="button" onclick="setAll(false)"
+                            class="btn btn-outline btn-sm">✗ Всі відсутні</button>
+                </div>
+            </div>
+
+            <!-- Список учнів -->
+            <div>
+                {% for s in students %}
+                <div class="student-row {% if s.token_used %}used{% endif %}"
+                     style="display:flex;align-items:center;padding:11px 16px;border-bottom:1px solid var(--border);gap:12px;transition:background .15s;">
+                    <!-- Чекбокс -->
+                    <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;">
+                        <input type="checkbox" name="present_{{ s.id }}"
+                               id="cb_{{ s.id }}"
+                               {% if s.present %}checked{% endif %}
+                               onchange="updateRow({{ s.id }}, this.checked)"
+                               style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary);">
+                        <span style="font-size:14px;font-weight:{% if s.present %}600{% else %}400{% endif %};
+                                     color:{% if s.present %}var(--text-main){% else %}var(--text-muted){% endif %};
+                                     text-decoration:{% if not s.present and s.marked %}line-through{% else %}none{% endif %};"
+                              id="name_{{ s.id }}">
+                            {{ s.full_name }}
+                        </span>
+                    </label>
+
+                    <!-- Статус -->
+                    <div id="status_{{ s.id }}" style="font-size:12px;white-space:nowrap;">
+                        {% if s.token_used %}
+                            <span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:12px;">
+                                ✅ пообідав{% if s.used_at %} о {{ s.used_at[11:16] }}{% endif %}
+                            </span>
+                        {% elif s.marked and s.present %}
+                            <span style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:12px;">
+                                🔵 QR надіслано
+                            </span>
+                        {% elif s.marked and not s.present %}
+                            <span style="background:#fef2f2;color:#991b1b;padding:2px 8px;border-radius:12px;">
+                                ✗ відсутній
+                            </span>
+                        {% else %}
+                            <span style="background:#f8fafc;color:#94a3b8;padding:2px 8px;border-radius:12px;">
+                                — не відмічено
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Лічильник + кнопка збереження -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <div style="font-size:13px;color:var(--text-muted);">
+                Присутні: <strong id="present-count">{{ students|selectattr('present')|list|length }}</strong>
+                / {{ students|length }}
+            </div>
+            <button type="submit" class="btn btn-primary" style="min-width:180px;">
+                {% if already_marked %}💾 Оновити відмітку{% else %}✔ Зберегти та надіслати QR{% endif %}
+            </button>
+        </div>
+    </form>
+
+    {% else %}
+    <div class="card" style="padding:30px;text-align:center;color:var(--text-muted);">
+        Немає учнів у цьому класі або клас не обрано.
+    </div>
+    {% endif %}
+
+    <!-- Підказка -->
+    <div class="card" style="padding:14px 18px;margin-top:16px;font-size:13px;color:var(--text-muted);">
+        <strong>Як це працює:</strong><br>
+        1. Відмітьте хто є сьогодні → натисніть «Зберегти»<br>
+        2. Присутнім учням бот автоматично надішле QR-код для столової<br>
+        3. У столовій касир сканує QR → система підтверджує обід<br>
+        Можна оновлювати відмітку протягом дня.
+    </div>
+</div>
+
+<script>
+const total = {{ students|length }};
+
+function updateRow(id, isPresent) {
+    const name = document.getElementById('name_' + id);
+    if (name) {
+        name.style.fontWeight = isPresent ? '600' : '400';
+        name.style.color = isPresent ? 'var(--text-main)' : 'var(--text-muted)';
+        name.style.textDecoration = isPresent ? 'none' : 'line-through';
+    }
+    updateCount();
+}
+
+function setAll(state) {
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.checked = state;
+        const id = cb.name.replace('present_', '');
+        updateRow(id, state);
+    });
+}
+
+function updateCount() {
+    const checked = document.querySelectorAll('input[type="checkbox"]:checked').length;
+    document.getElementById('present-count').textContent = checked;
+}
+
+// Ініціалізуємо лічильник
+updateCount();
+</script>
+{% endblock %}

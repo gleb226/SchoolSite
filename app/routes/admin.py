@@ -12,15 +12,19 @@ ADMIN_ROLES = ('admin', 'principal', 'vice_principal')
 
 
 @admin_bp.before_request
-@login_required
 def check_admin():
+    from flask import redirect, url_for, g
     user = g.get('current_user')
-    if not user or user['role'] not in ADMIN_ROLES:
+    if not user:
+        return redirect(url_for('auth.login'))
+    if user['role'] not in ADMIN_ROLES and user['role'] != 'superuser':
         abort(403)
 
 
 @admin_bp.route('/')
 def admin_dashboard():
+    return redirect(url_for('dashboard.superuser_dashboard'))
+    db = get_db()
     db = get_db()
     stats = {
         'total_users': db.execute('SELECT COUNT(*) as c FROM users').fetchone()['c'],
@@ -78,7 +82,7 @@ def edit_user(user_id):
             success = 'Користувача відхилено'
         elif action == 'update_role':
             new_role = request.form.get('role')
-            allowed = ('student','parent','teacher','vice_principal','principal','class_president','school_president','admin')
+            allowed = ('student','parent','teacher','vice_principal','principal','class_president','school_president','admin','superuser')
             if new_role in allowed:
                 db.execute('UPDATE users SET role=? WHERE id=?', (new_role, user_id))
                 db.commit()

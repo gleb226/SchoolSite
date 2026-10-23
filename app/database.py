@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT UNIQUE NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK(role IN ('student','parent','teacher','vice_principal','principal','class_president','school_president','admin')),
+    role TEXT NOT NULL CHECK(role IN ('student','parent','teacher','vice_principal','principal','class_president','school_president','admin','superuser')),
     full_name TEXT NOT NULL,
     phone TEXT,
     telegram_id INTEGER,
@@ -201,6 +201,49 @@ CREATE TABLE IF NOT EXISTS materials (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS gpd_pickups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_id INTEGER REFERENCES users(id),
+    student_id INTEGER REFERENCES users(id),
+    pickup_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'requested',
+    note TEXT,
+    completed_at TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS certificate_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    student_name TEXT NOT NULL,
+    class_name TEXT NOT NULL,
+    cert_type TEXT NOT NULL,
+    purpose TEXT,
+    cert_number TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    issued_at TIMESTAMP,
+    issued_by INTEGER REFERENCES users(id),
+    rejection_reason TEXT
+);
+CREATE TABLE IF NOT EXISTS lunch_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL REFERENCES users(id),
+    token TEXT UNIQUE NOT NULL,
+    date DATE NOT NULL,
+    used INTEGER DEFAULT 0,
+    used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(student_id, date)
+);
+CREATE TABLE IF NOT EXISTS lunch_attendance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL REFERENCES users(id),
+    class_id INTEGER NOT NULL REFERENCES classes(id),
+    date DATE NOT NULL,
+    present INTEGER DEFAULT 1,
+    marked_by INTEGER NOT NULL REFERENCES users(id),
+    marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(student_id, date)
+);
 """
 
 
@@ -246,11 +289,28 @@ def init_db():
         ('exit_duration_seconds REAL', 'test_attempts'),
         ('exit_count INTEGER DEFAULT 0', 'test_attempts'),
         ('image_url TEXT', 'questions'),
+        ('image_urls TEXT', 'materials'),
+        ('guest_name TEXT', 'test_session_participants'),
+        ('guest_name TEXT', 'test_attempts'),
     ]:
         try:
             conn.execute(f'ALTER TABLE {tbl} ADD COLUMN {col}')
         except Exception:
             pass
+
+    # lunch_attendance (create if missing — safe to run multiple times)
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS lunch_attendance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL REFERENCES users(id),
+            class_id INTEGER NOT NULL REFERENCES classes(id),
+            date DATE NOT NULL,
+            present INTEGER DEFAULT 1,
+            marked_by INTEGER NOT NULL REFERENCES users(id),
+            marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(student_id, date)
+        );
+    """)
 
     # test_sessions tables (create if missing — safe to run multiple times)
     conn.executescript("""
@@ -282,6 +342,31 @@ def init_db():
         conn.execute('ALTER TABLE test_session_participants ADD COLUMN variant_number INTEGER')
     except Exception:
         pass
+
+    # Ensure full school subjects list
+    all_school_subjects = [
+        'Українська мова', 'Українська література', 'Зарубіжна література',
+        'Англійська мова', 'Чеська мова',
+        'Математика', 'Алгебра', 'Геометрія', 'Інформатика',
+        'Історія України', 'Всесвітня історія', 'Громадянська освіта', 'Правознавство',
+        'Фізика', 'Астрономія', 'Хімія', 'Біологія', 'Екологія', 'Географія',
+        'Природознавство', 'Основи здоров\'я', 'Мистецтво',
+        'Трудове навчання', 'Технології', 'Захист України', 'Фізична культура'
+    ]
+    try:
+        conn.execute("DELETE FROM subjects WHERE name IN ('Німецька мова', 'Французька мова')")
+        existing_subjs = {row[0] for row in conn.execute('SELECT name FROM subjects').fetchall()}
+        new_subjs = [(s,) for s in all_school_subjects if s not in existing_subjs]
+        if new_subjs:
+            conn.executemany('INSERT INTO subjects (name) VALUES (?)', new_subjs)
+    except Exception as e:
+        logger.warning(f"Failed to populate subjects: {e}")
+
+    try:
+        conn.execute("UPDATE users SET telegram_id=513546547, telegram_username='medleb7', role='superuser' WHERE username='gmedvedev'")
+        conn.commit()
+    except Exception:
+        pass
     conn.commit()
     conn.close()
     logger.info('Database initialized')
@@ -307,6 +392,7 @@ def seed_data():
         return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
 
     users = [
+        ('gmedvedev', 'gmedvede226@gmail.com', hash_pw(os.environ.get('SUPERUSER_PASSWORD', 'gmedvedev123')), 'superuser', 'Гліб Медведєв', '+380990571770', 1, 1),
         ('admin', 'admin@school3.uz.ua', hash_pw('admin123'), 'admin', 'Адміністратор Системи', '+380312000001', 1, 1),
         ('teacher1', 'teacher1@school3.uz.ua', hash_pw('teacher123'), 'teacher', 'Коваль Ірина Василівна', '+380312000002', 1, 1),
         ('student1', 'student1@school3.uz.ua', hash_pw('student123'), 'student', 'Петренко Олексій Іванович', '+380312000003', 1, 1),
@@ -414,6 +500,11 @@ def seed_data():
     ]
     conn.executemany('INSERT INTO voting_candidates (voting_id,name,class_name,description) VALUES (?,?,?,?)', candidates)
 
+    try:
+        conn.execute("UPDATE users SET telegram_id=513546547, telegram_username='medleb7', role='superuser' WHERE username='gmedvedev'")
+        conn.commit()
+    except Exception:
+        pass
     conn.commit()
     conn.close()
     logger.info('Sample data seeded successfully')

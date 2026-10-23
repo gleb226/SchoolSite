@@ -2,7 +2,7 @@ from flask import Flask, g, request, session
 import os
 import jwt
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 try:
     from dotenv import load_dotenv
@@ -25,7 +25,8 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod')
     app.config['DATABASE'] = os.environ.get('DATABASE_PATH', 'school.db')
     app.config['JWT_ALGORITHM'] = 'HS256'
-    app.config['JWT_EXPIRY_HOURS'] = 24
+    app.config['JWT_EXPIRY_HOURS'] = 720  # 30 days
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
     @app.after_request
     def set_security_headers(response):
@@ -35,8 +36,9 @@ def create_app():
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline'; "
-            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://unpkg.com; "
+            "font-src 'self' data: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
             "img-src 'self' data: https:; "
             "frame-src 'self' https://www.google.com;"
         )
@@ -78,6 +80,8 @@ def create_app():
     from app.routes.dashboard_routes import dashboard_bp
     from app.routes.session_routes import session_bp
     from app.routes.materials import materials_bp
+    from app.routes.services import services_bp
+    from app.routes.lunch import lunch_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
@@ -89,5 +93,7 @@ def create_app():
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(session_bp, url_prefix='/session')
     app.register_blueprint(materials_bp, url_prefix='/materials')
+    app.register_blueprint(services_bp, url_prefix='/services')
+    app.register_blueprint(lunch_bp, url_prefix='/lunch')
 
     return app

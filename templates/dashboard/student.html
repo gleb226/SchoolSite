@@ -19,6 +19,9 @@
         <a href="{{ url_for('diary.attendance') }}" class="btn btn-outline" style="font-size: 15px; padding: 10px 20px;">
             {{ icons.icon('calendar') }} Відвідуваність
         </a>
+        <a href="{{ url_for('services.certificates_index') }}" class="btn btn-outline" style="font-size: 15px; padding: 10px 20px;">
+            📑 Замовити довідку
+        </a>
     </div>
 </div>
 
@@ -125,8 +128,16 @@
 <!-- Telegram -->
 {% if not current_user.telegram_id %}
 <div class="dashboard-section info-box" style="margin-top: 30px;">
-    <h3>Підключити Telegram-сповіщення</h3>
-    <p>Отримуйте оцінки та оголошення прямо в Telegram. Знайдіть бота та виконайте команду <code>/link</code>.</p>
+    <h3>📱 Підключити Telegram-сповіщення</h3>
+    <p>Отримуйте QR для харчування, оцінки та оголошення прямо в Telegram.</p>
+    <a href="{{ url_for('dashboard.link_telegram') }}" class="btn btn-primary">
+        Підключити Telegram →
+    </a>
+</div>
+{% else %}
+<div class="dashboard-section info-box" style="margin-top: 30px;border-color:#10b981;">
+    <h3 style="color:#065f46;">✅ Telegram підключено</h3>
+    <p>Сповіщення та QR для харчування надходять автоматично.</p>
 </div>
 {% endif %}
 {% endblock %}

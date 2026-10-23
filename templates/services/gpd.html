@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Група подовженого дня (ГПД) — Ужгородський ліцей №3{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 900px; padding: 25px 15px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="font-size: 24px; font-weight: 700; margin: 0 0 6px 0;">🎒 Група подовженого дня (ГПД)</h1>
+            <p style="color: var(--text-muted); margin: 0; font-size: 14px;">Швидке сповіщення вихователя про прихід батьків за дитиною</p>
+        </div>
+        <div>
+            <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline btn-sm">← До кабінету</a>
+        </div>
+    </div>
+
+    {# ── ФОРМА ВИКЛИКУ (для батьків, адміна та superuser) ── #}
+    {% if current_user.role in ('parent', 'superuser', 'admin', 'principal') %}
+    <div class="card" style="margin-bottom: 25px; border-left: 4px solid var(--primary); padding: 22px;">
+        <h2 style="font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+            <span>👋 Я прийшов(ла) за дитиною</span>
+        </h2>
+
+        {% if children %}
+        <form method="POST" action="{{ url_for('services.gpd_request_pickup') }}">
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px;">
+                    Оберіть дитину / учня:
+                </label>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    {% for child in children %}
+                    <label style="display: flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1.5px solid var(--border); border-radius: 8px; cursor: pointer; background: var(--surface);">
+                        <input type="radio" name="student_id" value="{{ child.id }}" {% if loop.first %}checked{% endif %} required>
+                        <div>
+                            <strong>{{ child.full_name }}</strong>
+                            {% if child.class_name %}<span style="color: var(--text-muted); font-size: 13px;">({{ child.class_name }})</span>{% endif %}
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label for="pickup_note" style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px;">
+                    Коментар (де ви очікуєте):
+                </label>
+                <input type="text" id="pickup_note" name="note"
+                       placeholder="Наприклад: Чекаю біля вахти на 1 поверсі / Буду через 5 хвилин"
+                       style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-main);">
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="padding: 12px 24px; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+                🔔 Надіслати сповіщення вихователю ГПД
+            </button>
+        </form>
+        {% else %}
+        <div style="padding: 15px; background: rgba(59, 130, 246, 0.08); border-radius: 8px; color: var(--text-main);">
+            Не знайдено учнів для вибору. Переконайтеся, що в системі зареєстровані учні.
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# ── ЖУРНАЛ ЗАПИТІВ НА СЬОГОДНІ ── #}
+    <div class="card" style="padding: 20px;">
+        <h2 style="font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 15px;">
+            📋 Запити на забирання з ГПД (сьогодні, {{ today }})
+        </h2>
+
+        {% if pickups %}
+        <div class="table-responsive">
+            <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 1.5px solid var(--border);">
+                        <th style="padding: 10px 12px; text-align: left;">Час</th>
+                        <th style="padding: 10px 12px; text-align: left;">Учень / Клас</th>
+                        <th style="padding: 10px 12px; text-align: left;">Хто забирає</th>
+                        <th style="padding: 10px 12px; text-align: left;">Коментар</th>
+                        <th style="padding: 10px 12px; text-align: left;">Статус</th>
+                        {% if current_user.role in ('teacher', 'admin', 'principal', 'superuser', 'vice_principal') %}
+                        <th style="padding: 10px 12px; text-align: center;">Дія</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in pickups %}
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 12px; font-weight: 600;">{{ p.pickup_time[11:16] if p.pickup_time and p.pickup_time|length >= 16 else p.pickup_time }}</td>
+                        <td style="padding: 12px;">
+                            <strong>{{ p.student_name }}</strong>
+                            {% if p.class_name %}<br><small style="color: var(--text-muted);">{{ p.class_name }}</small>{% endif %}
+                        </td>
+                        <td style="padding: 12px;">
+                            {{ p.parent_name }}
+                            {% if p.parent_phone %}<br><small style="color: var(--text-muted);">{{ p.parent_phone }}</small>{% endif %}
+                        </td>
+                        <td style="padding: 12px; font-size: 13px;">{{ p.note or '—' }}</td>
+                        <td style="padding: 12px;">
+                            {% if p.status == 'completed' %}
+                            <span class="badge" style="background: #10b981; color: #fff; padding: 4px 10px; border-radius: 20px; font-size: 12px;">✅ Відпущено</span>
+                            {% else %}
+                            <span class="badge" style="background: #f59e0b; color: #fff; padding: 4px 10px; border-radius: 20px; font-size: 12px;">⏳ Очікують біля входу</span>
+                            {% endif %}
+                        </td>
+                        {% if current_user.role in ('teacher', 'admin', 'principal', 'superuser', 'vice_principal') %}
+                        <td style="padding: 12px; text-align: center;">
+                            {% if p.status != 'completed' %}
+                            <form method="POST" action="{{ url_for('services.gpd_complete', pickup_id=p.id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-success" style="font-size: 12px; padding: 6px 12px;">
+                                    ✓ Відпустити дитину
+                                </button>
+                            </form>
+                            {% else %}
+                            <span style="color: var(--text-muted); font-size: 12px;">Відпущено о {{ p.completed_at[11:16] if p.completed_at else 'ОК' }}</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-muted); text-align: center; padding: 25px 0; margin: 0;">Запитів на забирання з ГПД сьогодні ще не було.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -42,12 +42,16 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+.kiro/
 
-# ── Testing / coverage ────────────────────────────────────────────────────────
+# ── Testing / Scratch / Temp files ────────────────────────────────────────────
 .coverage
 htmlcov/
 .pytest_cache/
 .tox/
+scratch_*.py
+test_gen.py
+formula_temp.txt
 
 # ── Uploads (large user files — keep folder, ignore contents) ─────────────────
 static/uploads/*

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Single entry point - starts Flask + Telegram bot"""
 import os
 import sys
@@ -21,6 +21,18 @@ def start_telegram_bot():
     if not bot_token:
         logger.warning('BOT_TOKEN not set - Telegram bot disabled')
         return
+    # Clean up stale lock file if it's older than 60 seconds (process likely crashed)
+    import tempfile
+    lock_path = os.path.join(tempfile.gettempdir(), f'schoolsite_bot_{bot_token[:8]}.lock')
+    if os.path.exists(lock_path):
+        age = os.path.getmtime(lock_path)
+        import time as _time
+        if _time.time() - age > 60:
+            logger.warning('Removing stale bot lock file (process likely crashed).')
+            try:
+                os.remove(lock_path)
+            except Exception:
+                pass
     try:
         import asyncio
         from app.bot.telegram_bot import run_bot

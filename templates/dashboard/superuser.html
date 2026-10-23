@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Особистий кабінет — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1050px;padding:20px 15px;">
+
+    <!-- Заголовок -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+        <div>
+            <h1 style="font-size:24px;font-weight:800;margin:0 0 4px 0;">
+                🏫 Головна панель керування — {{ current_user.full_name }}
+            </h1>
+            <p style="color:var(--text-muted);margin:0;font-size:13.5px;">
+                Єдиний центр управління ліцеєм · {{ today }}
+            </p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <form method="POST" action="{{ url_for('lunch.test_send_qr') }}" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-primary" style="display:inline-flex;align-items:center;gap:6px;">
+                    ⚡ Тест QR в Telegram
+                </button>
+            </form>
+            <a href="{{ url_for('dashboard.link_telegram') }}" class="btn btn-sm btn-outline"
+               style="{% if current_user.telegram_id %}background:#d1fae5;border-color:#10b981;color:#065f46;{% else %}background:#fef3c7;border-color:#f59e0b;color:#92400e;{% endif %}">
+                {% if current_user.telegram_id %}✅ Telegram підключено{% else %}📱 Підключити Telegram{% endif %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Статистика ліцею -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-bottom:24px;">
+        <div class="card" style="padding:14px;text-align:center;">
+            <div style="font-size:26px;font-weight:800;color:var(--primary);">{{ stats.total_users }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">Користувачів</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;{% if stats.pending_users %}border-color:#f59e0b;background:rgba(245,158,11,0.05);{% endif %}">
+            <div style="font-size:26px;font-weight:800;color:{% if stats.pending_users %}#f59e0b{% else %}var(--text-muted){% endif %};">{{ stats.pending_users }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">Очікують схвалення</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;">
+            <div style="font-size:26px;font-weight:800;">{{ stats.students }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">Учнів</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;">
+            <div style="font-size:26px;font-weight:800;">{{ stats.teachers }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">Вчителів</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;">
+            <div style="font-size:26px;font-weight:800;">{{ stats.classes }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">Класів</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;">
+            <div style="font-size:26px;font-weight:800;color:#10b981;">{{ lunch_stats.fed_today }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">Пообідали сьогодні</div>
+        </div>
+        <div class="card" style="padding:14px;text-align:center;">
+            <div style="font-size:26px;font-weight:800;">{{ stats.tests }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">Тестів</div>
+        </div>
+    </div>
+
+    <!-- ВЕЛИКИЙ СПИСОК КЕРУВАННЯ ВСІМ -->
+    <div class="card" style="padding:22px;margin-bottom:24px;">
+        <h3 style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin:0 0 16px 0;">
+            🛠️ Розділи управління закладом
+        </h3>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;">
+            <!-- Блок 1: Адміністрування -->
+            <div style="background:var(--surface-2,#f8fafc);border:1px solid var(--border);border-radius:12px;padding:16px;">
+                <div style="font-weight:700;margin-bottom:10px;font-size:14px;color:var(--primary);">
+                    🏛️ Адміністрація та структура
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <a href="{{ url_for('admin.users') }}" class="btn btn-outline btn-sm">👥 Користувачі та заявки</a>
+                    <a href="{{ url_for('admin.classes') }}" class="btn btn-outline btn-sm">🏫 Класи</a>
+                    <a href="{{ url_for('admin.subjects') }}" class="btn btn-outline btn-sm">📚 Предмети</a>
+                    <a href="{{ url_for('admin.manage_news') }}" class="btn btn-outline btn-sm">📰 Новини ліцею</a>
+                    <a href="{{ url_for('voting.list_votings') }}" class="btn btn-outline btn-sm">🗳️ Шкільні вибори</a>
+                </div>
+            </div>
+
+            <!-- Блок 2: Навчальний процес -->
+            <div style="background:var(--surface-2,#f8fafc);border:1px solid var(--border);border-radius:12px;padding:16px;">
+                <div style="font-weight:700;margin-bottom:10px;font-size:14px;color:#0284c7;">
+                    📖 Навчальний процес
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <a href="{{ url_for('diary.add_grade') }}" class="btn btn-outline btn-sm">📝 Виставити оцінку</a>
+                    <a href="{{ url_for('diary.mark_attendance') }}" class="btn btn-outline btn-sm">✅ Відвідуваність</a>
+                    <a href="{{ url_for('tests.create_test') }}" class="btn btn-outline btn-sm">📋 Створити тест</a>
+                    <a href="{{ url_for('tests.list_tests') }}" class="btn btn-outline btn-sm">📄 Всі тести</a>
+                    <a href="{{ url_for('materials.list_materials') }}" class="btn btn-outline btn-sm">📚 Матеріали</a>
+                </div>
+            </div>
+
+            <!-- Блок 3: Їдальня та сервіси -->
+            <div style="background:var(--surface-2,#f8fafc);border:1px solid var(--border);border-radius:12px;padding:16px;">
+                <div style="font-weight:700;margin-bottom:10px;font-size:14px;color:#10b981;">
+                    🍽️ Їдальня, довідки та ГПД
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <a href="{{ url_for('lunch.morning_roll') }}" class="btn btn-outline btn-sm">📋 Ранкова відмітка обідів</a>
+                    <a href="{{ url_for('lunch.canteen') }}" class="btn btn-outline btn-sm">📷 Сканер касира</a>
+                    <a href="{{ url_for('lunch.my_qr') }}" class="btn btn-outline btn-sm">🎫 Мій QR-код</a>
+                    <a href="{{ url_for('lunch.report') }}" class="btn btn-outline btn-sm">📊 Звіт їдальні</a>
+                    <a href="{{ url_for('services.gpd_index') }}" class="btn btn-outline btn-sm">🎒 Журнал ГПД</a>
+                    <a href="{{ url_for('services.certificates_index') }}" class="btn btn-outline btn-sm">📑 Електронні довідки</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Заявки користувачів та швидкі дії -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+
+        <!-- Нові заявки на реєстрацію -->
+        <div class="card" style="padding:18px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <div style="font-weight:700;display:flex;align-items:center;gap:6px;">
+                    <span>👥 Очікують схвалення</span>
+                    {% if stats.pending_users %}
+                    <span style="background:#f59e0b;color:#fff;border-radius:20px;padding:2px 8px;font-size:12px;">
+                        {{ stats.pending_users }}
+                    </span>
+                    {% endif %}
+                </div>
+                <a href="{{ url_for('admin.users') }}" class="btn btn-outline btn-sm">Всі користувачі →</a>
+            </div>
+
+            {% if pending %}
+            <div style="font-size:13px;">
+                {% for u in pending[:5] %}
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);">
+                    <div>
+                        <strong>{{ u.full_name }}</strong>
+                        <span style="color:var(--text-muted);font-size:12px;"> · {{ u.role }}</span>
+                    </div>
+                    <a href="{{ url_for('admin.edit_user', user_id=u.id) }}" class="btn btn-sm btn-primary">Схвалити</a>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color:var(--text-muted);font-size:13px;margin:10px 0;">Немає нерозглянутих заявок. Всі акаунти підтверджено.</p>
+            {% endif %}
+        </div>
+
+        <!-- Мій QR для харчування -->
+        <div class="card" style="padding:18px;text-align:center;">
+            <div style="font-weight:700;margin-bottom:12px;text-align:left;">🍽️ Мій QR для шкільної їдальні</div>
+            {% if lunch_used %}
+            <div style="padding:14px;background:#d1fae5;border-radius:10px;color:#065f46;font-weight:600;margin:10px 0;">
+                ✅ Сьогоднішній обід уже отримано{% if lunch_used_at %} о {{ lunch_used_at[11:16] }}{% endif %}
+            </div>
+            {% elif lunch_token %}
+            <div style="margin:10px auto;">
+                <img src="{{ url_for('lunch.get_qr_png', student_id=current_user.id) }}"
+                     style="width:130px;height:130px;border:2px solid var(--border);border-radius:10px;"
+                     alt="QR">
+            </div>
+            <div style="margin-top:8px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+                <a href="{{ url_for('lunch.my_qr') }}" class="btn btn-outline btn-sm">Відкрити великий QR →</a>
+                <form method="POST" action="{{ url_for('lunch.test_send_qr') }}" style="display:inline;">
+                    <button type="submit" class="btn btn-sm btn-primary">📲 Скинути в Telegram</button>
+                </form>
+            </div>
+            {% else %}
+            <p style="color:var(--text-muted);font-size:13px;margin:12px 0;">
+                QR-код активується після ранкової відмітки класу.
+            </p>
+            <a href="{{ url_for('lunch.morning_roll') }}" class="btn btn-outline btn-sm">Зробити відмітку →</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Останні виставлені оцінки -->
+    <div class="card" style="padding:18px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div style="font-weight:700;">📝 Останні оцінки в ліцеї</div>
+            <a href="{{ url_for('diary.add_grade') }}" class="btn btn-outline btn-sm">+ Виставити оцінку</a>
+        </div>
+        {% if recent_grades %}
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                    <tr style="color:var(--text-muted);border-bottom:1.5px solid var(--border);">
+                        <th style="padding:8px 10px;text-align:left;">Учень</th>
+                        <th style="padding:8px 10px;text-align:left;">Предмет</th>
+                        <th style="padding:8px 10px;text-align:center;">Оцінка</th>
+                        <th style="padding:8px 10px;text-align:left;">Дата</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in recent_grades %}
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:8px 10px;font-weight:600;">{{ g.student_name }}</td>
+                        <td style="padding:8px 10px;color:var(--text-muted);">{{ g.subject_name }}</td>
+                        <td style="padding:8px 10px;text-align:center;"><strong style="font-size:14px;color:var(--primary);">{{ g.grade }}</strong></td>
+                        <td style="padding:8px 10px;color:var(--text-muted);">{{ g.date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color:var(--text-muted);font-size:13px;margin:0;">Оцінок ще немає.</p>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

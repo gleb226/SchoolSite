@@ -11,11 +11,11 @@ ENV PORT=10000
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Copy the application
 COPY . .
 
-# Expose the port
-EXPOSE $PORT
+# Expose the application port
+EXPOSE 10000
 
-# Command to run the application
-CMD gunicorn --workers 2 --threads 2 --timeout 120 --bind 0.0.0.0:$PORT wsgi:app
+# Command to run the application with 1 worker and multiple threads for SQLite + Bot safety
+CMD gunicorn --workers 1 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT wsgi:app

@@ -14,7 +14,10 @@ class UserModel:
     @staticmethod
     def get_by_username(username):
         db = get_db()
-        row = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        # Підтримує логін як по username так і по email
+        row = db.execute(
+            'SELECT * FROM users WHERE username=? OR email=?', (username, username)
+        ).fetchone()
         return dict(row) if row else None
 
     @staticmethod
