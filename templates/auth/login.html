@@ -19,7 +19,12 @@
 
         <div class="form-group">
             <label for="password">Пароль:</label>
-            <input type="password" id="password" name="password" required autocomplete="current-password">
+            <div style="position: relative; display: flex; align-items: center;">
+                <input type="password" id="password" name="password" required autocomplete="current-password" style="padding-right: 42px; width: 100%;">
+                <button type="button" onclick="togglePasswordVisibility('password', this)" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.1rem; padding: 4px;" title="Показати/приховати пароль" tabindex="-1">
+                    👁️
+                </button>
+            </div>
         </div>
 
         <button type="submit" class="btn btn-primary">Увійти</button>
