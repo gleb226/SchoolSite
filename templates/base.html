@@ -98,13 +98,6 @@
                     {% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal') %}
                         <li><a href="{{ url_for('materials.list_materials') }}" {% if request.blueprint == 'materials' %}class="active"{% endif %}>Матеріали</a></li>
                     {% endif %}
-                    <li><a href="{{ url_for('services.gpd_index') }}" {% if request.endpoint == 'services.gpd_index' %}class="active"{% endif %}>🎒 ГПД</a></li>
-                    <li><a href="{{ url_for('services.certificates_index') }}" {% if request.endpoint == 'services.certificates_index' %}class="active"{% endif %}>📑 Довідки</a></li>
-                    <li>
-                        <a href="{{ url_for('diary.grades') }}" style="display:flex;align-items:center;gap:5px;">
-                            📓 Щоденник
-                        </a>
-                    </li>
                 {% endif %}
             </ul>
         </div>
@@ -155,13 +148,6 @@
         {% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal') %}
             <li><a href="{{ url_for('materials.list_materials') }}" {% if request.blueprint == 'materials' %}class="active"{% endif %}>📄 Матеріали</a></li>
         {% endif %}
-        <li><a href="{{ url_for('services.gpd_index') }}" {% if request.endpoint == 'services.gpd_index' %}class="active"{% endif %}>🎒 Група подовженого дня</a></li>
-        <li><a href="{{ url_for('services.certificates_index') }}" {% if request.endpoint == 'services.certificates_index' %}class="active"{% endif %}>📑 Електронні довідки</a></li>
-        <li>
-            <a href="{{ url_for('diary.grades') }}">
-                📓 Електронний щоденник
-            </a>
-        </li>
         <li class="mobile-nav-divider"></li>
         <li><a href="{{ url_for('auth.logout') }}" class="mobile-nav-logout">🚪 Вийти</a></li>
         {% else %}
