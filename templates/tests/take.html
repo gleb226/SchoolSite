@@ -309,6 +309,7 @@ body { padding-bottom: env(safe-area-inset-bottom,0px); }
             <li>Заборонено виходити з вікна, перемикати вкладки</li>
             <li>Копіювання та вставка заблоковані</li>
             <li><strong style="color:#f87171;">При першому виході — тест негайно закривається!</strong></li>
+            <li style="color:#fbbf24;">🚫 Picture-in-Picture (плаваюче вікно) заборонено — детектується автоматично</li>
             <li style="color:#86efac;">Короткий вихід (&lt;3 с) через мережевий лаг — тільки попередження</li>
         </ul>
         <button id="gate-btn" class="btn btn-primary"
@@ -422,6 +423,15 @@ function exitFS() {
 if (!IS_PREVIEW) {
     document.getElementById('gate-btn').addEventListener('click', async () => {
         try { await requestFS(); } catch(e) {}
+        // Перевіряємо, що fullscreen справді увімкнувся
+        setTimeout(() => {
+            if (!verifyFullscreen()) {
+                // Fullscreen не вдалося — показуємо попередження але всеодно пускаємо
+                // (деякі браузери блокують fullscreen без user gesture)
+                document.getElementById('fs-gate').querySelector('.gate-card').insertAdjacentHTML('beforeend',
+                    '<p style="color:#fbbf24;font-size:12px;margin-top:8px;">⚠️ Не вдалося увімкнути повний екран. Будьте уважні — вихід з вікна буде зафіксовано.</p>');
+            }
+        }, 300);
         document.getElementById('fs-gate').style.display = 'none';
         // Push two states so Back button has something to intercept
         history.replaceState({ testPage: true }, '', window.location.href);
@@ -590,6 +600,102 @@ document.addEventListener('keydown', e => {
         return false;
     }
 }, true);
+
+/* ────────────────────────────────────────────────────────────────
+   PICTURE-IN-PICTURE (PiP) БЛОКУВАННЯ
+   Плаваюче вікно (картинка в картинці) — найпростіший спосіб списати:
+   учень відкриває відео/зображення з відповідями в іншому додатку,
+   переводить його в PiP режим, і воно висить поверх тесту.
+   Випадки:
+   1. PiP на ЦІЙ сторінці — блокуємо API
+   2. PiP з ІНШОГО додатку — не забирає фокус, blur не спрацьовує
+      Тому: опитування document.hasFocus() + перевірка pictureInPictureElement
+   ────────────────────────────────────────────────────────────── */
+
+// 1. Блокуємо PiP API на цій сторінці повністю
+try {
+    if (HTMLVideoElement && HTMLVideoElement.prototype.requestPictureInPicture) {
+        HTMLVideoElement.prototype.requestPictureInPicture = function() {
+            throw new Error('PiP disabled during test');
+        };
+    }
+    // Встановлюємо disablePictureInPicture для всіх відео на сторінці
+    document.querySelectorAll('video').forEach(v => v.disablePictureInPicture = true);
+} catch(e) {}
+
+// 2. Слухаємо подію enterpictureinpicture (на будь-якому відео)
+document.addEventListener('enterpictureinpicture', () => {
+    if (!started || submitted) return;
+    registerExit('увімкнення Picture-in-Picture', 5.0);
+});
+
+// 3. Перевіряємо media query: чи сторінка сама в PiP режимі
+if (window.matchMedia && window.matchMedia('(display-mode: picture-in-picture)')) {
+    window.matchMedia('(display-mode: picture-in-picture)').addEventListener('change', (e) => {
+        if (e.matches && started && !submitted) {
+            registerExit('тест у Picture-in-Picture режимі', 5.0);
+        }
+    });
+}
+
+// 4. ОПИТУВАННЯ: головний захист від зовнішнього PiP
+//   PiP з іншого додатку НЕ викликає blur/visibilitychange на цій сторінці.
+//    Тому кожні 700мс перевіряємо:
+//    - document.hasFocus() — чи вікно має фокус
+//    - document.pictureInPictureElement — чи є активне PiP відео
+//    - window.outerHeight vs window.innerHeight — чи є наложення
+let _focusPollPrev = true;
+let _pipPollActive = false;
+setInterval(() => {
+    if (!started || submitted) return;
+
+    // Перевірка PiP на цій сторінці
+    if (document.pictureInPictureElement) {
+        registerExit('Picture-in-Picture вікно активне', 5.0);
+        return;
+    }
+
+    // Перевірка фокусу — PiP з іншого додатку може забирати фокус
+    const hasFocus = document.hasFocus();
+    if (!hasFocus && _focusPollPrev) {
+        // Фокус щойно втрачено — засікаємо час
+        if (exitStart === 0) {
+            exitStart = Date.now();
+            _blurTimer = setTimeout(() => {
+                if (!submitted && exitStart > 0) {
+                    const dur = (Date.now() - exitStart) / 1000;
+                    exitStart = 0;
+                    registerExit('втрата фокусу вікна (можливе PiP/накладення)', dur);
+                }
+            }, 1500);
+        }
+    } else if (hasFocus && !_focusPollPrev && exitStart > 0) {
+        // Фокус повернувся
+        clearTimeout(_blurTimer);
+        _blurTimer = null;
+        const dur = (Date.now() - exitStart) / 1000;
+        exitStart = 0;
+        if (dur >= 0.5) {
+            registerExit('коротка втрата фокусу', dur);
+        }
+    }
+    _focusPollPrev = hasFocus;
+}, 700);
+
+/* ── Реальна перевірка fullscreen після запуску ──────────────── */
+function verifyFullscreen() {
+    const full = !!(document.fullscreenElement || document.webkitFullscreenElement ||
+                    document.mozFullScreenElement || document.msFullscreenElement);
+    return full;
+}
+
+// Перевіряємо fullscreen кожні 2с (якщо раптом вийшов без події)
+setInterval(() => {
+    if (!started || submitted || IS_PREVIEW) return;
+    if (!verifyFullscreen()) {
+        registerExit('вихід з повноекранного режиму (перевірка)', 5.0);
+    }
+}, 2000);
 
 document.addEventListener('contextmenu', e => e.preventDefault(), true);
 document.addEventListener('copy', e => e.preventDefault(), true);
