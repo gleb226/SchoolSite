@@ -17,6 +17,10 @@ services:
         generateValue: true
       - key: DATABASE_PATH
         value: /opt/render/project/src/school.db
+      - key: SUPERUSER_PASSWORD
+        sync: false
+      - key: SUPERUSER_USERNAME
+        value: medleb
       - key: PORT
         value: "10000"
       - key: SCHOOL_NAME

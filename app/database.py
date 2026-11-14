@@ -505,6 +505,13 @@ def init_db():
     except Exception as e:
         logger.warning(f'FTS5 init skipped: {e}')
 
+    # ── Model cache table (auto-updating AI model registry) ─────────────────
+    conn.execute("""CREATE TABLE IF NOT EXISTS model_cache (
+        provider TEXT PRIMARY KEY,
+        models   TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""")
+
     conn.commit()
     conn.close()
     logger.info('Database initialized')

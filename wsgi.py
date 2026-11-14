@@ -24,6 +24,23 @@ with app.app_context():
     except Exception as e:
         logger.warning(f"DB init: {e}")
 
+# ── Periodic AI model auto-refresh (every 24h) ───────────────────────────────
+def _model_refresh_loop():
+    """Background thread that keeps AI models up-to-date without manual intervention."""
+    import time
+    from app.llm import refresh_models
+    time.sleep(10)  # Let the app settle
+    while True:
+        try:
+            with app.app_context():
+                refresh_models()
+        except Exception as e:
+            logger.warning(f"Model refresh error: {e}")
+        time.sleep(24 * 3600)  # 24 hours
+
+t_models = threading.Thread(target=_model_refresh_loop, daemon=True)
+t_models.start()
+
 # Запуск Telegram-бота у фоновому потоці, якщо задано BOT_TOKEN
 def _run_bot_background():
     bot_token = os.environ.get('BOT_TOKEN', '').strip()

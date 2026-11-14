@@ -248,13 +248,66 @@ class _ProviderSlot:
 
 
 _MODELS_INITIALIZED = False
+_LAST_REFRESH = 0
+_REFRESH_INTERVAL = 24 * 3600  # 24 hours in seconds
 
-def _init_dynamic_models():
-    global _MODELS_INITIALIZED, GEMINI_FALLBACKS, OPENROUTER_MODELS, GROQ_MODELS
-    if _MODELS_INITIALIZED:
-        return
-    _MODELS_INITIALIZED = True
-    
+
+def _load_model_cache():
+    """Load previously discovered models from the database cache."""
+    global GEMINI_FALLBACKS, OPENROUTER_MODELS, GROQ_MODELS
+    try:
+        from app.database import get_db
+        db = get_db()
+        for row in db.execute('SELECT provider, models, updated_at FROM model_cache').fetchall():
+            import json as _json
+            models = _json.loads(row['models'])
+            if row['provider'] == 'gemini' and models:
+                GEMINI_FALLBACKS = models
+                logger.info(f"Loaded Gemini models from cache: {models[:3]}...")
+            elif row['provider'] == 'openrouter' and models:
+                OPENROUTER_MODELS = models
+                logger.info(f"Loaded OpenRouter models from cache: {models[:3]}...")
+            elif row['provider'] == 'groq' and models:
+                GROQ_MODELS = models
+                logger.info(f"Loaded Groq models from cache: {models[:3]}...")
+    except Exception as ex:
+        logger.debug(f"No model cache to load: {ex}")
+
+
+def _save_model_cache():
+    """Save discovered models to the database cache."""
+    try:
+        from app.database import get_db
+        import json as _json
+        from datetime import datetime, timezone
+        db = get_db()
+        now = datetime.now(timezone.utc).isoformat()
+        for provider, models in [
+            ('gemini', GEMINI_FALLBACKS),
+            ('openrouter', OPENROUTER_MODELS),
+            ('groq', GROQ_MODELS),
+        ]:
+            db.execute(
+                'INSERT OR REPLACE INTO model_cache (provider, models, updated_at) VALUES (?,?,?)',
+                (provider, _json.dumps(models), now)
+            )
+        db.commit()
+        logger.info("Model cache saved to database")
+    except Exception as ex:
+        logger.warning(f"Failed to save model cache: {ex}")
+
+
+def refresh_models():
+    """Public API: fetch the latest models from all providers and update the cache.
+    Safe to call from a cron job, background thread, or admin panel."""
+    _discover_models_from_apis()
+    _save_model_cache()
+
+
+def _discover_models_from_apis():
+    """Fetch the latest available models from provider APIs and update in-memory lists."""
+    global GEMINI_FALLBACKS, OPENROUTER_MODELS, GROQ_MODELS
+
     # Dynamic Gemini models
     if GEMINI_KEYS:
         try:
@@ -262,18 +315,20 @@ def _init_dynamic_models():
             req = urllib.request.Request(url)
             with urllib.request.urlopen(req, timeout=4) as resp:
                 data = json.loads(resp.read().decode())
-                models = [m['name'].replace('models/', '') for m in data.get('models', []) 
+                models = [m['name'].replace('models/', '') for m in data.get('models', [])
                           if 'generateContent' in m.get('supportedGenerationMethods', [])]
                 flash_models = [
-                    m for m in models 
-                    if 'flash' in m 
+                    m for m in models
+                    if 'flash' in m
                     and not any(x in m for x in ('preview', 'tts', 'image', 'omni', 'computer-use', 'robotics'))
                 ]
-                priority = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.8-flash']
+                priority = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest',
+                            'gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.8-flash',
+                            'gemini-2.0-flash', 'gemini-1.5-flash']
                 ordered = [m for m in priority if m in flash_models] + [m for m in flash_models if m not in priority]
                 if ordered:
-                    GEMINI_FALLBACKS = ordered[:6]
-                    logger.info(f"Dynamically loaded Gemini fallbacks: {GEMINI_FALLBACKS}")
+                    GEMINI_FALLBACKS = ordered[:8]
+                    logger.info(f"Refreshed Gemini models: {GEMINI_FALLBACKS}")
         except Exception as ex:
             logger.warning(f"Dynamic Gemini model fetch failed: {ex}")
 
@@ -291,7 +346,7 @@ def _init_dynamic_models():
                         free_models.append(m['id'])
                 if free_models:
                     OPENROUTER_MODELS = free_models[:12]
-                    logger.info(f"Dynamically loaded OpenRouter free models: {OPENROUTER_MODELS}")
+                    logger.info(f"Refreshed OpenRouter free models: {OPENROUTER_MODELS[:4]}...")
         except Exception as ex:
             logger.warning(f"Dynamic OpenRouter model fetch failed: {ex}")
 
@@ -305,19 +360,41 @@ def _init_dynamic_models():
             })
             with urllib.request.urlopen(req, timeout=4) as resp:
                 data = json.loads(resp.read().decode())
-                # Filter chat models (exclude whisper, guard, etc.)
                 chat_models = [
                     m['id'] for m in data.get('data', [])
                     if not any(x in m['id'].lower() for x in ('whisper', 'guard', 'safeguard', 'orpheus', 'embed', 'tts'))
                 ]
                 if chat_models:
-                    # Put qwen and gpt-oss first
-                    pref = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b']
+                    pref = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b',
+                            'llama-3.3-70b-versatile', 'mixtral-8x7b-32768']
                     sorted_groq = [m for m in pref if m in chat_models] + [m for m in chat_models if m not in pref]
                     GROQ_MODELS = sorted_groq
-                    logger.info(f"Dynamically loaded Groq models: {GROQ_MODELS}")
+                    logger.info(f"Refreshed Groq models: {GROQ_MODELS[:4]}...")
         except Exception as ex:
             logger.warning(f"Dynamic Groq model fetch failed: {ex}")
+
+
+def _init_dynamic_models():
+    """Load cached models from DB, then refresh from APIs in background."""
+    global _MODELS_INITIALIZED, _LAST_REFRESH
+    if _MODELS_INITIALIZED:
+        return
+    _MODELS_INITIALIZED = True
+
+    # 1. Fast path: load from DB cache (instant, no network calls)
+    _load_model_cache()
+
+    # 2. Refresh from APIs — this updates the lists with the latest models
+    import threading
+    def _bg_refresh():
+        import time
+        _discover_models_from_apis()
+        _save_model_cache()
+        _LAST_REFRESH = time.time()
+
+    # Run refresh in a daemon thread so it doesn't block the first request
+    t = threading.Thread(target=_bg_refresh, daemon=True)
+    t.start()
 
 def _build_slots(task: str = 'default') -> list[_ProviderSlot]:
     """Build ordered list of provider slots based on task type."""
