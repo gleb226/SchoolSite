@@ -476,9 +476,43 @@ def init_db():
         conn.commit()
     except Exception as e:
         logger.warning(f"Failed to ensure superuser in 11-A: {e}")
+    # ── FTS5 full-text search tables (trigram tokenizer for typo tolerance) ──
+    try:
+        conn.execute("""CREATE VIRTUAL TABLE IF NOT EXISTS materials_fts USING fts5(
+            material_id UNINDEXED,
+            title,
+            subject,
+            content,
+            tokenize='trigram'
+        )""")
+        conn.execute("""CREATE VIRTUAL TABLE IF NOT EXISTS tests_fts USING fts5(
+            test_id UNINDEXED,
+            title,
+            description,
+            topic,
+            tokenize='trigram'
+        )""")
+        # Sync materials FTS
+        conn.execute('DELETE FROM materials_fts')
+        for row in conn.execute('SELECT id, title, subject, content_md FROM materials').fetchall():
+            conn.execute('INSERT INTO materials_fts (material_id, title, subject, content) VALUES (?,?,?,?)',
+                         (row[0], row[1] or '', row[2] or '', row[3] or ''))
+        # Sync tests FTS
+        conn.execute('DELETE FROM tests_fts')
+        for row in conn.execute('SELECT id, title, description, topic FROM tests WHERE is_practice = 0 OR is_practice IS NULL').fetchall():
+            conn.execute('INSERT INTO tests_fts (test_id, title, description, topic) VALUES (?,?,?,?)',
+                         (row[0], row[1] or '', row[2] or '', row[3] or ''))
+    except Exception as e:
+        logger.warning(f'FTS5 init skipped: {e}')
+
     conn.commit()
     conn.close()
     logger.info('Database initialized')
+
+
+def sync_materials_fts(db):
+    """Re-sync a single material into the FTS index (call after insert/update/delete)."""
+    pass  # handled inline in routes via DELETE + INSERT
 
 
 def seed_data():

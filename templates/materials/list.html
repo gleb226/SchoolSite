@@ -2,32 +2,46 @@
 {% block title %}Навчальні матеріали — Ужгородський ліцей №3{% endblock %}
 {% block content %}
 <div class="dashboard-header">
-    <h1>{{ icons.icon('file-text') }} Навчальні матеріали</h1>
-    <p>Конспекти, шпаргалки, довідники — створені та відформатовані AI</p>
+    <h1>{{ icons.icon('file-text') }} Бібліотека матеріалів</h1>
+    <p>Конспекти, шпаргалки, довідники — для навчання та повторення</p>
 </div>
 
 <style>
 .docs-layout { display: flex; gap: 24px; align-items: flex-start; }
-.docs-sidebar { 
-    width: 260px; flex-shrink: 0; background: #fff; border: 1px solid #e2e8f0; 
+.docs-sidebar {
+    width: 260px; flex-shrink: 0; background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; padding: 16px; position: sticky; top: 20px;
 }
 .docs-content { flex: 1; min-width: 0; }
-.filter-group-title { font-size: 13px; font-weight: 700; color: #64748b; text-transform: uppercase; margin: 16px 0 8px 0; letter-spacing: 0.5px; }
+.filter-group-title { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin: 16px 0 8px 0; letter-spacing: 0.5px; }
 .filter-btn {
     display: block; width: 100%; text-align: left; padding: 8px 12px; margin-bottom: 4px;
-    border: none; background: transparent; border-radius: 6px; font-size: 14px; color: #475569;
-    cursor: pointer; transition: all 0.15s; font-weight: 500;
+    border: none; background: transparent; border-radius: 6px; font-size: 14px; color: var(--text-main);
+    cursor: pointer; transition: all 0.15s; font-weight: 500; text-decoration: none;
 }
-.filter-btn:hover { background: #f1f5f9; color: #0f172a; }
-.filter-btn.active { background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+.filter-btn:hover { background: var(--surface-2, #f1f5f9); color: var(--primary); }
+.filter-btn.active { background: var(--primary-light, #eff6ff); color: var(--primary); font-weight: 600; }
 .mat-card {
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
     margin-bottom: 16px; transition: transform 0.15s, box-shadow 0.15s;
-    border-left: 4px solid #94a3b8;
+    border-left: 4px solid var(--border);
 }
 .mat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 .mat-card.published { border-left-color: #10b981; }
+.search-box {
+    display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.search-box input[type="text"] {
+    flex: 1; min-width: 200px; padding: 10px 16px; border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 15px; background: var(--surface); color: var(--text-main);
+}
+.search-box input[type="text"]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+.search-box button {
+    padding: 10px 22px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600;
+    background: var(--primary); color: #fff; cursor: pointer; transition: opacity 0.15s;
+}
+.search-box button:hover { opacity: 0.9; }
+.search-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 @media (max-width: 768px) {
     .docs-layout { flex-direction: column; }
     .docs-sidebar { width: 100%; position: static; }
@@ -37,7 +51,7 @@
 <div class="dashboard-header" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
     <div>
         <h1 style="margin-bottom:4px;">{{ icons.icon('file-text') }} Бібліотека матеріалів</h1>
-        <p style="margin:0; color:#64748b;">Конспекти, шпаргалки, довідники</p>
+        <p style="margin:0; color:var(--text-muted);">Конспекти, шпаргалки, довідники</p>
     </div>
     {% if current_user.role in ['teacher', 'admin', 'principal', 'vice_principal', 'superuser'] %}
     <a href="{{ url_for('materials.create_material') }}" class="btn btn-primary" style="background: linear-gradient(135deg, #4f46e5, #3b82f6); border:none;">
@@ -49,100 +63,89 @@
 <div class="docs-layout">
     <!-- Sidebar -->
     <div class="docs-sidebar">
-        <button class="filter-btn active" data-filter="all">Всі матеріали</button>
-        
+        <a href="{{ url_for('materials.list_materials') }}{% if search_q %}?q={{ search_q }}{% endif %}"
+           class="filter-btn {% if not class_filter %}active{% endif %}">Всі матеріали</a>
+
         <div class="filter-group-title">За класами</div>
         {% for i in range(1, 12) %}
-            <button class="filter-btn filter-class" data-class="{{ i }}">{{ i }} клас</button>
+            <a href="{{ url_for('materials.list_materials') }}?class={{ i }}{% if search_q %}&q={{ search_q }}{% endif %}"
+               class="filter-btn {% if class_filter == i|string %}active{% endif %}">{{ i }} клас</a>
         {% endfor %}
+
+        {% if student_class_num %}
+        <div class="filter-group-title">Мій клас</div>
+        <a href="{{ url_for('materials.list_materials') }}?class={{ student_class_num }}"
+           class="filter-btn" style="color:#059669;font-weight:600;">📚 {{ student_class_num }} клас (мій)</a>
+        {% endif %}
     </div>
 
     <!-- Main Content -->
     <div class="docs-content">
-        {% if materials %}
-            <div id="materials-container">
-                {% for m in materials %}
-                <div class="mat-card {% if m.is_published %}published{% endif %}" 
-                     data-class="{{ m.class_level|default('', true)|trim }}">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
-                        <div style="flex:1; min-width:0;">
-                            <a href="{{ url_for('materials.view_material', material_id=m.id) }}"
-                                style="font-size:18px; font-weight:700; color:#1e3a8a; text-decoration:none; display:block; margin-bottom:6px;">
-                                {{ m.title }}
-                            </a>
-                            <div style="font-size:13px; color:#64748b; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
-                                {% if m.subject %}<span style="background:#f1f5f9; padding:2px 8px; border-radius:12px; color:#334155; font-weight:600;">{{ m.subject }}</span>{% endif %}
-                                {% if m.class_level %}<span style="background:#eff6ff; padding:2px 8px; border-radius:12px; color:#1d4ed8; font-weight:600;">{{ m.class_level }} клас</span>{% endif %}
-                                <span>{{ m.teacher_name }}</span>
-                                <span>{{ m.updated_at[:10] }}</span>
-                                {% if current_user.role != 'student' %}
-                                <span style="color:{% if m.is_published %}#10b981{% else %}#94a3b8{% endif %}; font-weight:600;">
-                                    {% if m.is_published %}Опублікований{% else %}Чернетка{% endif %}
-                                </span>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% if current_user.role in ['admin', 'principal', 'vice_principal', 'superuser'] or current_user.id == m.teacher_id %}
-                        <div style="display:flex; gap:8px; flex-shrink:0;">
-                            <a href="{{ url_for('materials.edit_material', material_id=m.id) }}" class="btn btn-sm btn-outline">Редагувати</a>
-                            <form method="POST" action="{{ url_for('materials.delete_material', material_id=m.id) }}" style="display:inline;" onsubmit="return confirm('Видалити матеріал?')">
-                                <button type="submit" class="btn btn-sm btn-outline" style="color:#dc2626; border-color:#dc2626;">Видалити</button>
-                            </form>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            
-            <div id="no-results-msg" style="display:none; text-align:center; padding:40px 20px; color:#64748b;">
-                <h3 style="margin:0; color:#334155;">Матеріалів не знайдено</h3>
-                <p>Для цього класу поки немає збережених матеріалів.</p>
-            </div>
+        <!-- Search -->
+        <form class="search-box" method="GET" action="{{ url_for('materials.list_materials') }}">
+            {% if class_filter %}
+            <input type="hidden" name="class" value="{{ class_filter }}">
+            {% endif %}
+            <input type="text" name="q" value="{{ search_q }}" placeholder="Пошук за назвою, темою, ключовими словами..." autocomplete="off">
+            <button type="submit">🔍 Пошук</button>
+        </form>
+        {% if search_q %}
+        <div class="search-hint">Результати пошуку за: <strong>{{ search_q }}</strong>
+            <a href="{{ url_for('materials.list_materials') }}{% if class_filter %}?class={{ class_filter }}{% endif %}" style="margin-left:8px;color:var(--primary);">✕ Очистити</a>
+        </div>
         {% else %}
-            <div class="card" style="text-align:center; padding:48px 24px; color:#64748b;">
-                <h3 style="margin-bottom:8px; color:#334155;">Матеріалів поки немає</h3>
+        <div class="search-hint">Пошук підтримує друкарські помилки (триграмний пошук)</div>
+        {% endif %}
+
+        {% if materials %}
+            {% for m in materials %}
+            <div class="mat-card {% if m.is_published %}published{% endif %}"
+                 data-class="{{ m.class_level|default('', true)|trim }}">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+                    <div style="flex:1; min-width:0;">
+                        <a href="{{ url_for('materials.view_material', material_id=m.id) }}"
+                            style="font-size:18px; font-weight:700; color:var(--primary); text-decoration:none; display:block; margin-bottom:6px;">
+                            {{ m.title }}
+                        </a>
+                        <div style="font-size:13px; color:var(--text-muted); display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+                            {% if m.subject %}<span style="background:var(--surface-2, #f1f5f9); padding:2px 8px; border-radius:12px; color:var(--text-main); font-weight:600;">{{ m.subject }}</span>{% endif %}
+                            {% if m.class_level %}<span style="background:var(--primary-light, #eff6ff); padding:2px 8px; border-radius:12px; color:var(--primary); font-weight:600;">{{ m.class_level }} клас</span>{% endif %}
+                            <span>{{ m.teacher_name }}</span>
+                            <span>{{ m.updated_at[:10] }}</span>
+                            {% if current_user.role not in ('student', 'parent') %}
+                            <span style="color:{% if m.is_published %}#10b981{% else %}var(--text-muted){% endif %}; font-weight:600;">
+                                {% if m.is_published %}Опублікований{% else %}Чернетка{% endif %}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if current_user.role in ['admin', 'principal', 'vice_principal', 'superuser'] or current_user.id == m.teacher_id %}
+                    <div style="display:flex; gap:8px; flex-shrink:0;">
+                        <a href="{{ url_for('materials.edit_material', material_id=m.id) }}" class="btn btn-sm btn-outline">Редагувати</a>
+                        <form method="POST" action="{{ url_for('materials.delete_material', material_id=m.id) }}" style="display:inline;" onsubmit="return confirm('Видалити матеріал?')">
+                            <button type="submit" class="btn btn-sm btn-outline" style="color:#dc2626; border-color:#dc2626;">Видалити</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="card" style="text-align:center; padding:48px 24px; color:var(--text-muted);">
+                {% if search_q %}
+                <h3 style="margin-bottom:8px; color:var(--text-main);">Нічого не знайдено</h3>
+                <p>Спробуйте змінити запит або друкарські помилки — триграмний пошук допоможе.</p>
+                {% else %}
+                <h3 style="margin-bottom:8px; color:var(--text-main);">Матеріалів поки немає</h3>
                 <p style="margin-bottom:20px;">Натисніть «Створити матеріал» і AI допоможе вам підготувати конспект, шпаргалку або завдання за лічені секунди.</p>
                 {% if current_user.role in ['teacher', 'admin', 'principal', 'vice_principal', 'superuser'] %}
                 <a href="{{ url_for('materials.create_material') }}" class="btn btn-primary" style="background: linear-gradient(135deg, #4f46e5, #3b82f6); border:none;">
                     + Створити перший матеріал
                 </a>
                 {% endif %}
+                {% endif %}
             </div>
         {% endif %}
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    const filterBtns = document.querySelectorAll('.filter-btn');
-    const cards = document.querySelectorAll('.mat-card');
-    const noResultsMsg = document.getElementById('no-results-msg');
-    
-    filterBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            // Update active state
-            filterBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            // Filter cards
-            let visibleCount = 0;
-            const targetClass = btn.dataset.class;
-            
-            cards.forEach(card => {
-                if (!targetClass || targetClass === 'all' || card.dataset.class === targetClass) {
-                    card.style.display = 'block';
-                    visibleCount++;
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-            
-            if (noResultsMsg) {
-                noResultsMsg.style.display = visibleCount === 0 ? 'block' : 'none';
-            }
-        });
-    });
-});
-</script>
 {% endblock %}

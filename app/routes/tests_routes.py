@@ -27,9 +27,17 @@ def _student_can_access_test(db, user, test):
 
 
 def _staff_can_access_test(user, test):
-    if user['role'] in ('superuser', 'admin', 'principal', 'vice_principal'):
+    """All staff can view/preview/assign any test — only delete is owner-restricted."""
+    if user['role'] in ('superuser', 'admin', 'principal', 'vice_principal', 'teacher'):
         return True
-    return user['role'] == 'teacher' and int(test.get('teacher_id') or 0) == int(user['id'])
+    return False
+
+
+def _update_test_fts(db, test_id, title, description, topic):
+    """Insert or replace a test in the FTS5 index."""
+    db.execute('DELETE FROM tests_fts WHERE test_id = ?', (test_id,))
+    db.execute('INSERT INTO tests_fts (test_id, title, description, topic) VALUES (?,?,?,?)',
+               (test_id, title or '', description or '', topic or ''))
 
 
 @tests_bp.route('/')
@@ -39,10 +47,32 @@ def list_tests():
     user = g.current_user
     db = get_db()
     practice_tests = []
-    
+    search_q     = request.args.get('q', '').strip()
+    class_filter  = request.args.get('class', '').strip()
+
+    # ── Build extra WHERE clauses for search + class filter ───────────────
+    extra_where = []
+    extra_params = []
+
+    if search_q and len(search_q) >= 3:
+        extra_where.append('t.id IN (SELECT test_id FROM tests_fts WHERE tests_fts MATCH ?)')
+        extra_params.append(search_q)
+    elif search_q and len(search_q) > 0:
+        extra_where.append('(t.title LIKE ? OR t.description LIKE ? OR t.topic LIKE ?)')
+        like = f'%{search_q}%'
+        extra_params.extend([like, like, like])
+
+    if class_filter:
+        extra_where.append('(cl.name LIKE ? OR t.class_id IS NULL)')
+        extra_params.append(f'{class_filter}%')
+
+    extra_sql = (' AND ' + ' AND '.join(extra_where)) if extra_where else ''
+
     if user['role'] == 'student':
+        params = [user['id'], user['id']]
+        params.extend(extra_params)
         rows = db.execute(
-            """SELECT t.*, s.name as subject_name, cl.name as class_name,
+            f"""SELECT t.*, s.name as subject_name, cl.name as class_name,
                       (SELECT COUNT(*) FROM test_attempts ta WHERE ta.test_id=t.id AND ta.student_id=? AND ta.status='finished') as attempts_done
                FROM tests t
                JOIN student_classes sc ON t.class_id = sc.class_id
@@ -50,10 +80,11 @@ def list_tests():
                LEFT JOIN classes cl ON t.class_id = cl.id
                WHERE sc.student_id = ? AND t.is_active = 1 AND (t.is_practice = 0 OR t.is_practice IS NULL)
                  AND (t.variant_group_id IS NULL OR t.id = t.variant_group_id)
+                 {extra_sql}
                ORDER BY t.created_at DESC""",
-            (user['id'], user['id'])
+            params
         ).fetchall()
-            
+
         practice_tests = [dict(r) for r in db.execute(
             """SELECT t.*, s.name as subject_name,
                       (SELECT COUNT(*) FROM test_attempts ta WHERE ta.test_id=t.id AND ta.student_id=? AND ta.status='finished') as attempts_done,
@@ -75,33 +106,22 @@ def list_tests():
         ).fetchall()]
     else:
         completed_topics = []
-        if user['role'] in ('superuser', 'admin', 'principal', 'vice_principal'):
-            rows = db.execute(
-                """SELECT t.*, s.name as subject_name, cl.name as class_name,
-                          (CASE WHEN t.variant_group_id IS NOT NULL AND t.id = t.variant_group_id
-                                THEN (SELECT COUNT(*) FROM tests t2 WHERE t2.variant_group_id = t.variant_group_id AND t2.is_active=1)
-                                ELSE NULL END) as variant_count
-                   FROM tests t
-                   LEFT JOIN subjects s ON t.subject_id = s.id
-                   LEFT JOIN classes cl ON t.class_id = cl.id
-                   WHERE t.is_practice = 0
-                     AND (t.variant_group_id IS NULL OR t.id = t.variant_group_id)
-                   ORDER BY t.created_at DESC"""
-            ).fetchall()
-        else:
-            rows = db.execute(
-                """SELECT t.*, s.name as subject_name, cl.name as class_name,
-                          (CASE WHEN t.variant_group_id IS NOT NULL AND t.id = t.variant_group_id
-                                THEN (SELECT COUNT(*) FROM tests t2 WHERE t2.variant_group_id = t.variant_group_id AND t2.is_active=1)
-                                ELSE NULL END) as variant_count
-                   FROM tests t
-                   LEFT JOIN subjects s ON t.subject_id = s.id
-                   LEFT JOIN classes cl ON t.class_id = cl.id
-                   WHERE t.teacher_id = ? AND t.is_practice = 0
-                     AND (t.variant_group_id IS NULL OR t.id = t.variant_group_id)
-                   ORDER BY t.created_at DESC""",
-                (user['id'],)
-            ).fetchall()
+        # All staff (teachers, admins, superusers) see ALL tests — can find & assign existing ones
+        params = list(extra_params)
+        rows = db.execute(
+            f"""SELECT t.*, s.name as subject_name, cl.name as class_name,
+                      (CASE WHEN t.variant_group_id IS NOT NULL AND t.id = t.variant_group_id
+                            THEN (SELECT COUNT(*) FROM tests t2 WHERE t2.variant_group_id = t.variant_group_id AND t2.is_active=1)
+                            ELSE NULL END) as variant_count
+               FROM tests t
+               LEFT JOIN subjects s ON t.subject_id = s.id
+               LEFT JOIN classes cl ON t.class_id = cl.id
+               WHERE t.is_practice = 0
+                 AND (t.variant_group_id IS NULL OR t.id = t.variant_group_id)
+                 {extra_sql}
+               ORDER BY t.created_at DESC""",
+            params
+        ).fetchall()
 
     subjects = [dict(r) for r in db.execute('SELECT * FROM subjects ORDER BY name').fetchall()]
     return render_template('tests/list.html',
@@ -110,6 +130,8 @@ def list_tests():
                            completed_topics=completed_topics,
                            curriculum_topics=CURRICULUM_TOPICS,
                            subjects=subjects,
+                           search_q=search_q,
+                           class_filter=class_filter,
                            csrf_token=generate_csrf_token())
 
 
@@ -516,6 +538,7 @@ def create_test():
                     )
                     db.commit()
                     tid = db.execute('SELECT last_insert_rowid() as id').fetchone()['id']
+                    _update_test_fts(db, tid, test_title, description, topic)
 
                     for i, (qt, qtype, qpts) in enumerate(zip(
                         [q['question_text'] for q in questions_list],
@@ -583,6 +606,7 @@ def create_test():
                 )
                 db.commit()
                 test_id = db.execute('SELECT last_insert_rowid() as id').fetchone()['id']
+                _update_test_fts(db, test_id, title, description, topic)
 
                 for i, (qt, qtype, qpts) in enumerate(zip(q_texts, q_types, q_points)):
                     qt = sanitize_input(qt, 500)
@@ -1163,6 +1187,7 @@ def delete_test(test_id):
     db.execute('UPDATE completed_topics SET source_test_id=NULL WHERE source_test_id=?', (test_id,))
     # 8. Сам тест
     db.execute('DELETE FROM tests WHERE id=?', (test_id,))
+    db.execute('DELETE FROM tests_fts WHERE test_id=?', (test_id,))
     db.commit()
 
     logger.info(f'Test {test_id} "{test["title"]}" deleted by user {user["id"]} ({user["role"]})')

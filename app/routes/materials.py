@@ -32,6 +32,13 @@ logger = logging.getLogger(__name__)
 
 materials_bp = Blueprint('materials', __name__)
 
+
+def _update_material_fts(db, material_id, title, subject, content_md):
+    """Insert or replace a material in the FTS5 index."""
+    db.execute('DELETE FROM materials_fts WHERE material_id = ?', (material_id,))
+    db.execute('INSERT INTO materials_fts (material_id, title, subject, content) VALUES (?,?,?,?)',
+               (material_id, title or '', subject or '', content_md or ''))
+
 # ── Prompt templates ───────────────────────────────────────────────────────────
 
 _GENERATE_PROMPT = """Ти — провідний вчитель та методист українського ліцею.
@@ -157,29 +164,69 @@ def _get_material_or_404(material_id: int, check_owner: bool = True):
 
 @materials_bp.route('/')
 @login_required
-@role_required('teacher', 'admin', 'principal', 'vice_principal')
 def list_materials():
     db   = get_db()
     user = g.current_user
-    if user['role'] in ('admin', 'principal', 'vice_principal', 'superuser'):
-        mats = db.execute(
-            'SELECT m.*, u.full_name as teacher_name, c.name as class_name '
-            'FROM materials m '
-            'LEFT JOIN users u ON m.teacher_id = u.id '
-            'LEFT JOIN classes c ON m.class_id = c.id '
-            'ORDER BY m.updated_at DESC'
-        ).fetchall()
-    else:
-        mats = db.execute(
-            'SELECT m.*, u.full_name as teacher_name, c.name as class_name '
-            'FROM materials m '
-            'LEFT JOIN users u ON m.teacher_id = u.id '
-            'LEFT JOIN classes c ON m.class_id = c.id '
-            'WHERE m.teacher_id = ? '
-            'ORDER BY m.updated_at DESC',
+    search_q    = request.args.get('q', '').strip()
+    class_filter = request.args.get('class', '').strip()
+
+    is_staff = user['role'] in ('teacher', 'admin', 'principal', 'vice_principal', 'superuser')
+
+    # ── For students: default to their own class ──────────────────────────
+    student_class_num = None
+    if user['role'] == 'student' and not class_filter and not search_q:
+        sc = db.execute(
+            'SELECT c.name FROM classes c JOIN student_classes sc ON c.id = sc.class_id WHERE sc.student_id = ?',
             (user['id'],)
-        ).fetchall()
-    return render_template('materials/list.html', materials=[dict(m) for m in mats])
+        ).fetchone()
+        if sc:
+            m = re.match(r'^(\d+)', sc['name'])
+            if m:
+                student_class_num = m.group(1)
+                class_filter = student_class_num
+
+    # ── Base query ────────────────────────────────────────────────────────
+    params = []
+    where_clauses = []
+
+    if is_staff:
+        if user['role'] not in ('admin', 'principal', 'vice_principal', 'superuser'):
+            where_clauses.append('m.teacher_id = ?')
+            params.append(user['id'])
+    else:
+        # Students/parents see only published materials
+        where_clauses.append('m.is_published = 1')
+
+    # ── Class filter ──────────────────────────────────────────────────────
+    if class_filter:
+        where_clauses.append('m.class_level LIKE ?')
+        params.append(f'{class_filter}%')
+
+    # ── FTS5 search ──────────────────────────────────────────────────────
+    if search_q and len(search_q) >= 3:
+        where_clauses.append('m.id IN (SELECT material_id FROM materials_fts WHERE materials_fts MATCH ?)')
+        params.append(search_q)
+    elif search_q and len(search_q) > 0 and len(search_q) < 3:
+        # Too short for trigram — use LIKE fallback
+        where_clauses.append('(m.title LIKE ? OR m.subject LIKE ? OR m.content_md LIKE ?)')
+        like = f'%{search_q}%'
+        params.extend([like, like, like])
+
+    where_sql = ('WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
+
+    mats = db.execute(
+        f'SELECT m.*, u.full_name as teacher_name, c.name as class_name '
+        f'FROM materials m '
+        f'LEFT JOIN users u ON m.teacher_id = u.id '
+        f'LEFT JOIN classes c ON m.class_id = c.id '
+        f'{where_sql} '
+        f'ORDER BY m.updated_at DESC',
+        params
+    ).fetchall()
+
+    return render_template('materials/list.html', materials=[dict(m) for m in mats],
+                           search_q=search_q, class_filter=class_filter,
+                           student_class_num=student_class_num)
 
 
 @materials_bp.route('/create', methods=['GET', 'POST'])
@@ -217,6 +264,9 @@ def create_material():
              user['id'], is_published,
              datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
         )
+        db.commit()
+        new_id = db.execute('SELECT last_insert_rowid() as id').fetchone()['id']
+        _update_material_fts(db, new_id, title, subject, content_md)
         db.commit()
         flash('Матеріл збережено', 'success')
         return redirect(url_for('materials.list_materials'))
@@ -277,6 +327,8 @@ def edit_material(material_id: int):
              is_published, datetime.utcnow().isoformat(), material_id)
         )
         db.commit()
+        _update_material_fts(db, material_id, title, subject, content_md)
+        db.commit()
         flash('Зміни збережено ✓', 'success')
         return redirect(url_for('materials.view_material', material_id=material_id))
 
@@ -296,6 +348,7 @@ def delete_material(material_id: int):
         flash('Матеріал не знайдено', 'danger')
         return redirect(url_for('materials.list_materials'))
     db.execute('DELETE FROM materials WHERE id=?', (material_id,))
+    db.execute('DELETE FROM materials_fts WHERE material_id=?', (material_id,))
     db.commit()
     flash('Матеріал видалено', 'success')
     return redirect(url_for('materials.list_materials'))
