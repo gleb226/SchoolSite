@@ -92,19 +92,12 @@
                 <li><a href="{{ url_for('public.enrollment') }}" {% if request.endpoint == 'public.enrollment' %}class="active"{% endif %}>Вступ</a></li>
                 {% if current_user %}
                     <li><a href="{{ url_for('voting.list_votings') }}" {% if request.blueprint == 'voting' %}class="active"{% endif %}>Голосування</a></li>
-                    {% if current_user.role in ('student', 'teacher', 'admin', 'principal', 'vice_principal') %}
+                    {% if current_user.role in ('student', 'teacher', 'admin', 'principal', 'vice_principal', 'superuser') %}
                         <li><a href="{{ url_for('tests.list_tests') }}" {% if request.blueprint == 'tests' %}class="active"{% endif %}>Тести</a></li>
                     {% endif %}
                     {% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal', 'superuser') %}
                         <li><a href="{{ url_for('materials.list_materials') }}" {% if request.blueprint == 'materials' %}class="active"{% endif %}>Матеріали</a></li>
                     {% endif %}
-                    <li><a href="{{ url_for('services.gpd_index') }}" {% if request.endpoint == 'services.gpd_index' %}class="active"{% endif %}>🎒 ГПД</a></li>
-                    <li><a href="{{ url_for('services.certificates_index') }}" {% if request.endpoint == 'services.certificates_index' %}class="active"{% endif %}>📑 Довідки</a></li>
-                    <li>
-                        <a href="{{ url_for('diary.grades') }}" style="display:flex;align-items:center;gap:5px;">
-                            📓 Щоденник
-                        </a>
-                    </li>
                 {% endif %}
             </ul>
         </div>
@@ -149,19 +142,12 @@
         <li class="mobile-nav-divider"></li>
         <li><a href="{{ url_for('dashboard.dashboard') }}" class="mobile-nav-highlight">🏠 Особистий кабінет</a></li>
         <li><a href="{{ url_for('voting.list_votings') }}" {% if request.blueprint == 'voting' %}class="active"{% endif %}>🗳️ Голосування</a></li>
-        {% if current_user.role in ('student', 'teacher', 'admin', 'principal', 'vice_principal') %}
+        {% if current_user.role in ('student', 'teacher', 'admin', 'principal', 'vice_principal', 'superuser') %}
             <li><a href="{{ url_for('tests.list_tests') }}" {% if request.blueprint == 'tests' %}class="active"{% endif %}>📋 Тести</a></li>
         {% endif %}
         {% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal', 'superuser') %}
             <li><a href="{{ url_for('materials.list_materials') }}" {% if request.blueprint == 'materials' %}class="active"{% endif %}>📄 Матеріали</a></li>
         {% endif %}
-        <li><a href="{{ url_for('services.gpd_index') }}" {% if request.endpoint == 'services.gpd_index' %}class="active"{% endif %}>🎒 Група подовженого дня</a></li>
-        <li><a href="{{ url_for('services.certificates_index') }}" {% if request.endpoint == 'services.certificates_index' %}class="active"{% endif %}>📑 Електронні довідки</a></li>
-        <li>
-            <a href="{{ url_for('diary.grades') }}">
-                📓 Електронний щоденник
-            </a>
-        </li>
         <li class="mobile-nav-divider"></li>
         <li><a href="{{ url_for('auth.logout') }}" class="mobile-nav-logout">🚪 Вийти</a></li>
         {% else %}

@@ -85,8 +85,6 @@
                     📖 Навчальний процес
                 </div>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                    <a href="{{ url_for('diary.add_grade') }}" class="btn btn-outline btn-sm">📝 Виставити оцінку</a>
-                    <a href="{{ url_for('diary.mark_attendance') }}" class="btn btn-outline btn-sm">✅ Відвідуваність</a>
                     <a href="{{ url_for('tests.create_test') }}" class="btn btn-outline btn-sm">📋 Створити тест</a>
                     <a href="{{ url_for('tests.list_tests') }}" class="btn btn-outline btn-sm">📄 Всі тести</a>
                     <a href="{{ url_for('materials.list_materials') }}" class="btn btn-outline btn-sm">📚 Матеріали</a>
@@ -96,15 +94,13 @@
             <!-- Блок 3: Їдальня та сервіси -->
             <div style="background:var(--surface-2,#f8fafc);border:1px solid var(--border);border-radius:12px;padding:16px;">
                 <div style="font-weight:700;margin-bottom:10px;font-size:14px;color:#10b981;">
-                    🍽️ Їдальня, довідки та ГПД
+                    🍽️ Їдальня
                 </div>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;">
                     <a href="{{ url_for('lunch.morning_roll') }}" class="btn btn-outline btn-sm">📋 Ранкова відмітка обідів</a>
                     <a href="{{ url_for('lunch.canteen') }}" class="btn btn-outline btn-sm">📷 Сканер касира</a>
                     <a href="{{ url_for('lunch.my_qr') }}" class="btn btn-outline btn-sm">🎫 Мій QR-код</a>
                     <a href="{{ url_for('lunch.report') }}" class="btn btn-outline btn-sm">📊 Звіт їдальні</a>
-                    <a href="{{ url_for('services.gpd_index') }}" class="btn btn-outline btn-sm">🎒 Журнал ГПД</a>
-                    <a href="{{ url_for('services.certificates_index') }}" class="btn btn-outline btn-sm">📑 Електронні довідки</a>
                 </div>
             </div>
         </div>
@@ -176,7 +172,6 @@
     <div class="card" style="padding:18px;margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
             <div style="font-weight:700;">📝 Останні оцінки в ліцеї</div>
-            <a href="{{ url_for('diary.add_grade') }}" class="btn btn-outline btn-sm">+ Виставити оцінку</a>
         </div>
         {% if recent_grades %}
         <div style="overflow-x:auto;">

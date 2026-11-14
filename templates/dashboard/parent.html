@@ -7,14 +7,6 @@
         <p>Вітаємо, <strong>{{ current_user.full_name }}</strong>! Тут відображається успішність ваших дітей.</p>
     </div>
     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        {% if has_gpd_children %}
-        <a href="{{ url_for('services.gpd_index') }}" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
-            🎒 Забрати дитину з ГПД
-        </a>
-        {% endif %}
-        <a href="{{ url_for('services.certificates_index') }}" class="btn btn-outline" style="display: inline-flex; align-items: center; gap: 6px;">
-            📑 Замовити довідку
-        </a>
     </div>
 </div>
 
