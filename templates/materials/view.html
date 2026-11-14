@@ -51,7 +51,7 @@
             </p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;" class="no-print">
-            {% if current_user and current_user.role in ('teacher','class_teacher','psychologist','librarian','educator','admin','principal','vice_principal') %}
+            {% if current_user and current_user.role in ('teacher','class_teacher','psychologist','librarian','educator','admin','principal','vice_principal','superuser') %}
             <a href="{{ url_for('materials.edit_material', material_id=mat.id) }}" class="btn btn-outline btn-sm">Редагувати</a>
             {% endif %}
             <button onclick="window.print()" class="btn btn-outline btn-sm">Друк</button>

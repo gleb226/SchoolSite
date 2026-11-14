@@ -147,7 +147,7 @@ def _get_material_or_404(material_id: int, check_owner: bool = True):
     ).fetchone()
     if not mat:
         return None
-    if check_owner and user['role'] not in ('admin', 'principal', 'vice_principal'):
+    if check_owner and user['role'] not in ('admin', 'principal', 'vice_principal', 'superuser'):
         if mat['teacher_id'] != user['id']:
             return None
     return dict(mat)
@@ -161,7 +161,7 @@ def _get_material_or_404(material_id: int, check_owner: bool = True):
 def list_materials():
     db   = get_db()
     user = g.current_user
-    if user['role'] in ('admin', 'principal', 'vice_principal'):
+    if user['role'] in ('admin', 'principal', 'vice_principal', 'superuser'):
         mats = db.execute(
             'SELECT m.*, u.full_name as teacher_name, c.name as class_name '
             'FROM materials m '

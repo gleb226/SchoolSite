@@ -95,7 +95,7 @@
                     {% if current_user.role in ('student', 'teacher', 'admin', 'principal', 'vice_principal') %}
                         <li><a href="{{ url_for('tests.list_tests') }}" {% if request.blueprint == 'tests' %}class="active"{% endif %}>Тести</a></li>
                     {% endif %}
-                    {% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal') %}
+                    {% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal', 'superuser') %}
                         <li><a href="{{ url_for('materials.list_materials') }}" {% if request.blueprint == 'materials' %}class="active"{% endif %}>Матеріали</a></li>
                     {% endif %}
                     <li><a href="{{ url_for('services.gpd_index') }}" {% if request.endpoint == 'services.gpd_index' %}class="active"{% endif %}>🎒 ГПД</a></li>
@@ -152,7 +152,7 @@
         {% if current_user.role in ('student', 'teacher', 'admin', 'principal', 'vice_principal') %}
             <li><a href="{{ url_for('tests.list_tests') }}" {% if request.blueprint == 'tests' %}class="active"{% endif %}>📋 Тести</a></li>
         {% endif %}
-        {% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal') %}
+        {% if current_user.role in ('teacher', 'admin', 'principal', 'vice_principal', 'superuser') %}
             <li><a href="{{ url_for('materials.list_materials') }}" {% if request.blueprint == 'materials' %}class="active"{% endif %}>📄 Матеріали</a></li>
         {% endif %}
         <li><a href="{{ url_for('services.gpd_index') }}" {% if request.endpoint == 'services.gpd_index' %}class="active"{% endif %}>🎒 Група подовженого дня</a></li>
