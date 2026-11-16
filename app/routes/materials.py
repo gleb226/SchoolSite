@@ -202,15 +202,30 @@ def list_materials():
         where_clauses.append('m.class_level LIKE ?')
         params.append(f'{class_filter}%')
 
-    # ── FTS5 search ──────────────────────────────────────────────────────
-    if search_q and len(search_q) >= 3:
-        where_clauses.append('m.id IN (SELECT material_id FROM materials_fts WHERE materials_fts MATCH ?)')
-        params.append(search_q)
-    elif search_q and len(search_q) > 0 and len(search_q) < 3:
-        # Too short for trigram — use LIKE fallback
-        where_clauses.append('(m.title LIKE ? OR m.subject LIKE ? OR m.content_md LIKE ?)')
-        like = f'%{search_q}%'
-        params.extend([like, like, like])
+    # ── Search: FTS5 trigram with fallback to LIKE ────────────────────────
+    if search_q and len(search_q) >= 2:
+        try:
+            fts_rows = db.execute(
+                'SELECT material_id FROM materials_fts WHERE materials_fts MATCH ?',
+                (search_q,)
+            ).fetchall()
+            matched_ids = [r[0] for r in fts_rows]
+        except Exception:
+            matched_ids = []
+
+        if matched_ids:
+            placeholders = ','.join('?' * len(matched_ids))
+            where_clauses.append(f'm.id IN ({placeholders})')
+            params.extend(matched_ids)
+        else:
+            words = [w for w in search_q.split() if len(w) >= 2]
+            if words:
+                like_clauses = []
+                for w in words:
+                    like_clauses.append('(LOWER(m.title) LIKE ? OR LOWER(m.subject) LIKE ? OR LOWER(m.content_md) LIKE ?)')
+                    like = f'%{w.lower()}%'
+                    params.extend([like, like, like])
+                where_clauses.append('(' + ' OR '.join(like_clauses) + ')')
 
     where_sql = ('WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
 
@@ -236,7 +251,7 @@ def create_material():
     db         = get_db()
     user       = g.current_user
     csrf_token = generate_csrf_token()
-    classes    = [dict(r) for r in db.execute('SELECT * FROM classes ORDER BY name').fetchall()]
+    classes    = [dict(r) for r in db.execute("SELECT * FROM classes ORDER BY CAST(SUBSTR(name, 1, INSTR(name||'-', '-')-1) AS INTEGER), name").fetchall()]
     subjects   = [dict(r) for r in db.execute('SELECT * FROM subjects ORDER BY name').fetchall()]
 
     if request.method == 'POST':
@@ -300,7 +315,7 @@ def edit_material(material_id: int):
     db         = get_db()
     csrf_token = generate_csrf_token()
     mat        = _get_material_or_404(material_id)
-    classes    = [dict(r) for r in db.execute('SELECT * FROM classes ORDER BY name').fetchall()]
+    classes    = [dict(r) for r in db.execute("SELECT * FROM classes ORDER BY CAST(SUBSTR(name, 1, INSTR(name||'-', '-')-1) AS INTEGER), name").fetchall()]
     subjects   = [dict(r) for r in db.execute('SELECT * FROM subjects ORDER BY name').fetchall()]
 
     if not mat:

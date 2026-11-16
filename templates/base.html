@@ -91,7 +91,7 @@
                 <li><a href="{{ url_for('public.contacts') }}" {% if request.endpoint == 'public.contacts' %}class="active"{% endif %}>Контакти</a></li>
                 <li><a href="{{ url_for('public.enrollment') }}" {% if request.endpoint == 'public.enrollment' %}class="active"{% endif %}>Вступ</a></li>
                 {% if current_user %}
-                    <li><a href="{{ url_for('voting.list_votings') }}" {% if request.blueprint == 'voting' %}class="active"{% endif %}>Голосування</a></li>
+                    <li><a href="{{ url_for('voting.list_votings') }}" {% if request.blueprint == 'voting' %}class="active"{% endif %}>Скринька президента</a></li>
                     {% if current_user.role in ('student', 'teacher', 'admin', 'principal', 'vice_principal', 'superuser') %}
                         <li><a href="{{ url_for('tests.list_tests') }}" {% if request.blueprint == 'tests' %}class="active"{% endif %}>Тести</a></li>
                     {% endif %}
@@ -139,7 +139,7 @@
         {% if current_user %}
         <li class="mobile-nav-divider"></li>
         <li><a href="{{ url_for('dashboard.dashboard') }}" class="mobile-nav-highlight">🏠 Особистий кабінет</a></li>
-        <li><a href="{{ url_for('voting.list_votings') }}" {% if request.blueprint == 'voting' %}class="active"{% endif %}>🗳️ Голосування</a></li>
+        <li><a href="{{ url_for('voting.list_votings') }}" {% if request.blueprint == 'voting' %}class="active"{% endif %}>🗳️ Скринька президента</a></li>
         {% if current_user.role in ('student', 'teacher', 'admin', 'principal', 'vice_principal', 'superuser') %}
             <li><a href="{{ url_for('tests.list_tests') }}" {% if request.blueprint == 'tests' %}class="active"{% endif %}>📋 Тести</a></li>
         {% endif %}

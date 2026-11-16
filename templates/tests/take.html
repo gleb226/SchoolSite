@@ -24,9 +24,25 @@ body.test-mode textarea {
     -webkit-touch-callout:default!important;
 }
 
-/* Samsung: safe-area для notch та навігаційної панелі */
+/* ── Samsung: safe-area для notch та навігаційної панелі ── */
 html { padding-top: env(safe-area-inset-top,0px); }
 body { padding-bottom: env(safe-area-inset-bottom,0px); }
+
+/* Дозволяємо нормальну взаємодію з варіантами відповідей на тачскрінах */
+.option-item {
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: rgba(99,102,241,0.2) !important;
+}
+.option-item span {
+    pointer-events: auto !important;
+}
+.option-item input[type="radio"],
+.option-item input[type="checkbox"] {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+}
 
 /* ── Блокування @media print (скріншот через меню) ─────────────── */
 @media print {
@@ -550,7 +566,7 @@ window.addEventListener('blur', () => {
             exitStart = 0;
             registerExit('перехід в інше вікно', dur);
         }
-    }, 1000);
+    }, 4000);
 });
 window.addEventListener('focus', () => {
     clearTimeout(_blurTimer);
@@ -638,12 +654,7 @@ if (window.matchMedia && window.matchMedia('(display-mode: picture-in-picture)')
     });
 }
 
-// 4. ОПИТУВАННЯ: головний захист від зовнішнього PiP
-//   PiP з іншого додатку НЕ викликає blur/visibilitychange на цій сторінці.
-//    Тому кожні 700мс перевіряємо:
-//    - document.hasFocus() — чи вікно має фокус
-//    - document.pictureInPictureElement — чи є активне PiP відео
-//    - window.outerHeight vs window.innerHeight — чи є наложення
+// 4. ОПИТУВАННЯ: захист від зовнішнього PiP
 let _focusPollPrev = true;
 let _pipPollActive = false;
 setInterval(() => {
@@ -654,33 +665,7 @@ setInterval(() => {
         registerExit('Picture-in-Picture вікно активне', 5.0);
         return;
     }
-
-    // Перевірка фокусу — PiP з іншого додатку може забирати фокус
-    const hasFocus = document.hasFocus();
-    if (!hasFocus && _focusPollPrev) {
-        // Фокус щойно втрачено — засікаємо час
-        if (exitStart === 0) {
-            exitStart = Date.now();
-            _blurTimer = setTimeout(() => {
-                if (!submitted && exitStart > 0) {
-                    const dur = (Date.now() - exitStart) / 1000;
-                    exitStart = 0;
-                    registerExit('втрата фокусу вікна (можливе PiP/накладення)', dur);
-                }
-            }, 1500);
-        }
-    } else if (hasFocus && !_focusPollPrev && exitStart > 0) {
-        // Фокус повернувся
-        clearTimeout(_blurTimer);
-        _blurTimer = null;
-        const dur = (Date.now() - exitStart) / 1000;
-        exitStart = 0;
-        if (dur >= 0.5) {
-            registerExit('коротка втрата фокусу', dur);
-        }
-    }
-    _focusPollPrev = hasFocus;
-}, 700);
+}, 1500);
 
 /* ── Реальна перевірка fullscreen після запуску ──────────────── */
 function verifyFullscreen() {
@@ -689,13 +674,16 @@ function verifyFullscreen() {
     return full;
 }
 
-// Перевіряємо fullscreen кожні 2с (якщо раптом вийшов без події)
+// Перевіряємо fullscreen кожні 4с (якщо раптом вийшов без події)
 setInterval(() => {
     if (!started || submitted || IS_PREVIEW) return;
     if (!verifyFullscreen()) {
-        registerExit('вихід з повноекранного режиму (перевірка)', 5.0);
+        // На смартфонах fullscreen часто не підтримується повністю
+        if (window.innerWidth > 768) {
+            registerExit('вихід з повноекранного режиму (перевірка)', 5.0);
+        }
     }
-}, 2000);
+}, 4000);
 
 document.addEventListener('contextmenu', e => e.preventDefault(), true);
 document.addEventListener('copy', e => e.preventDefault(), true);

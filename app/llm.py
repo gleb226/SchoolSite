@@ -275,23 +275,24 @@ def _load_model_cache():
 
 
 def _save_model_cache():
-    """Save discovered models to the database cache."""
+    """Save discovered models to the database cache (uses direct sqlite3, no app context needed)."""
     try:
-        from app.database import get_db
-        import json as _json
+        import sqlite3, json as _json
         from datetime import datetime, timezone
-        db = get_db()
+        db_path = os.environ.get('DATABASE_PATH', 'school.db')
+        conn = sqlite3.connect(db_path, timeout=10)
         now = datetime.now(timezone.utc).isoformat()
         for provider, models in [
             ('gemini', GEMINI_FALLBACKS),
             ('openrouter', OPENROUTER_MODELS),
             ('groq', GROQ_MODELS),
         ]:
-            db.execute(
+            conn.execute(
                 'INSERT OR REPLACE INTO model_cache (provider, models, updated_at) VALUES (?,?,?)',
                 (provider, _json.dumps(models), now)
             )
-        db.commit()
+        conn.commit()
+        conn.close()
         logger.info("Model cache saved to database")
     except Exception as ex:
         logger.warning(f"Failed to save model cache: {ex}")

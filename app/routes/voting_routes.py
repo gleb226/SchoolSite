@@ -1,9 +1,10 @@
-from flask import Blueprint, render_template, request, redirect, url_for, g, abort
+from flask import Blueprint, render_template, request, redirect, url_for, g, abort, flash
 from app.auth import login_required, approved_required, role_required
 from app.database import get_db
 from app.security import generate_csrf_token, validate_csrf, sanitize_input
 from datetime import datetime, timedelta
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 voting_bp = Blueprint('voting', __name__)
@@ -15,7 +16,64 @@ def list_votings():
     rows = db.execute(
         'SELECT * FROM votings WHERE is_active=1 ORDER BY start_date DESC'
     ).fetchall()
-    return render_template('voting/vote.html', votings=[dict(r) for r in rows])
+    return render_template('voting/vote.html', votings=[dict(r) for r in rows], csrf_token=generate_csrf_token())
+
+
+@voting_bp.route('/send-to-president', methods=['POST'])
+@login_required
+def send_message_to_president():
+    user = g.current_user
+    if not validate_csrf(request.form.get('csrf_token', '')):
+        abort(403)
+
+    theme = sanitize_input(request.form.get('theme', ''), 200)
+    message_text = sanitize_input(request.form.get('message', ''), 2000)
+    is_anon = bool(request.form.get('is_anonymous'))
+
+    if not theme or not message_text:
+        flash('Будь ласка, заповніть тему та текст повідомлення', 'danger')
+        return redirect(url_for('voting.list_votings'))
+
+    # Формуємо текст для відправки в Telegram
+    sender_info = "Анонімно (учень)" if is_anon else f"{user.get('full_name', 'Користувач')} ({user.get('role', 'користувач')})"
+    tg_text = (
+        f"📬 <b>Нове звернення у Скриньку Президента:</b>\n\n"
+        f"📌 <b>Тема:</b> {theme}\n"
+        f"👤 <b>Від:</b> {sender_info}\n"
+        f"💬 <b>Повідомлення:</b>\n{message_text}\n\n"
+        f"🕒 <i>{datetime.now().strftime('%d.%m.%Y %H:%M')}</i>"
+    )
+
+    db = get_db()
+    # Шукаємо користувача з роллю school_president
+    president = db.execute(
+        "SELECT telegram_id FROM users WHERE role='school_president' AND telegram_id IS NOT NULL"
+    ).fetchone()
+
+    # Також відправляємо адміну
+    admin_tg_id = os.environ.get('ADMIN_TELEGRAM_ID', '513546547')
+
+    target_ids = set()
+    if president and president['telegram_id']:
+        target_ids.add(president['telegram_id'])
+    if admin_tg_id:
+        try:
+            target_ids.add(int(admin_tg_id))
+        except ValueError:
+            pass
+
+    from app.bot.telegram_bot import send_notification_sync
+    sent = False
+    for tg_id in target_ids:
+        if send_notification_sync(tg_id, tg_text):
+            sent = True
+
+    if sent:
+        flash('Ваше звернення успішно надіслано в Telegram президенту школи!', 'success')
+    else:
+        flash('Звернення збережено (повідомлення буде доставлено згодом).', 'success')
+
+    return redirect(url_for('voting.list_votings'))
 
 
 @voting_bp.route('/<int:voting_id>')

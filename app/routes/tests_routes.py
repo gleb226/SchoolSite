@@ -54,13 +54,31 @@ def list_tests():
     extra_where = []
     extra_params = []
 
-    if search_q and len(search_q) >= 3:
-        extra_where.append('t.id IN (SELECT test_id FROM tests_fts WHERE tests_fts MATCH ?)')
-        extra_params.append(search_q)
-    elif search_q and len(search_q) > 0:
-        extra_where.append('(t.title LIKE ? OR t.description LIKE ? OR t.topic LIKE ?)')
-        like = f'%{search_q}%'
-        extra_params.extend([like, like, like])
+    if search_q and len(search_q) >= 2:
+        # FTS5 search (trigram-based, matches substrings and typos) with fallback
+        try:
+            fts_rows = db.execute(
+                'SELECT test_id FROM tests_fts WHERE tests_fts MATCH ?',
+                (search_q,)
+            ).fetchall()
+            matched_ids = [r[0] for r in fts_rows]
+        except Exception:
+            matched_ids = []
+
+        if matched_ids:
+            placeholders = ','.join('?' * len(matched_ids))
+            extra_where.append(f't.id IN ({placeholders})')
+            extra_params.extend(matched_ids)
+        else:
+            # Fallback to word-by-word LIKE
+            words = [w for w in search_q.split() if len(w) >= 2]
+            if words:
+                like_clauses = []
+                for w in words:
+                    like_clauses.append('(LOWER(t.title) LIKE ? OR LOWER(t.description) LIKE ? OR LOWER(t.topic) LIKE ?)')
+                    like = f'%{w.lower()}%'
+                    extra_params.extend([like, like, like])
+                extra_where.append('(' + ' OR '.join(like_clauses) + ')')
 
     if class_filter:
         extra_where.append('(cl.name LIKE ? OR t.class_id IS NULL)')
@@ -166,12 +184,43 @@ def preview_test(test_id):
     return render_template('tests/preview.html', test=test, questions=questions_data)
 
 
+@tests_bp.route('/<int:test_id>/take')
+def take_test_redirect(test_id):
+    return redirect(url_for('tests.take_test', test_id=test_id))
+
+
+@tests_bp.route('/take/<int:test_id>/entry', methods=['GET', 'POST'])
+def take_guest_name(test_id):
+    """Guest entry page: asks for name if not logged in, or confirms current user."""
+    from flask import session as flask_session
+    user = g.current_user
+    db = get_db()
+    test = db.execute('SELECT * FROM tests WHERE id=? AND is_active=1', (test_id,)).fetchone()
+    if not test:
+        abort(404)
+
+    if request.method == 'POST':
+        if not validate_csrf(request.form.get('csrf_token', '')):
+            abort(403)
+        if user:
+            flask_session['guest_name'] = user['full_name']
+        else:
+            name = sanitize_input(request.form.get('guest_name', ''), 80)
+            if not name:
+                return render_template('tests/guest_entry.html', test=dict(test), error="Введіть ваше ім'я", csrf_token=generate_csrf_token())
+            flask_session['guest_name'] = name
+        flask_session['guest_test_id'] = test_id
+        return redirect(url_for('tests.take_test', test_id=test_id))
+
+    return render_template('tests/guest_entry.html', test=dict(test), csrf_token=generate_csrf_token())
+
+
 @tests_bp.route('/take/<int:test_id>')
 def take_test(test_id):
     from flask import session as flask_session
     user = g.current_user
 
-    # Guest support: allow users who joined via session with a name in flask_session
+    # Guest support: allow users who joined via session or guest entry
     guest_name = None
     is_guest = False
     if not user:
@@ -180,10 +229,10 @@ def take_test(test_id):
         if guest_name and guest_test_id == test_id:
             is_guest = True
         else:
-            # Not logged in and not a valid guest — redirect to login
-            return redirect(url_for('auth.login', next=request.url))
+            # Not logged in and not a valid guest — redirect to simple name entry!
+            return redirect(url_for('tests.take_guest_name', test_id=test_id))
 
-    is_staff_preview = (not is_guest) and user is not None and user['role'] in ('admin', 'principal', 'vice_principal', 'teacher')
+    is_staff_preview = (not is_guest) and user is not None and user['role'] in ('admin', 'principal', 'vice_principal', 'teacher', 'superuser')
     db = get_db()
 
     if is_guest:
@@ -643,7 +692,7 @@ def create_test():
                         subj_name = db.execute('SELECT name FROM subjects WHERE id=?', (subject_id,)).fetchone()
                         subj_label = subj_name['name'] if subj_name else ''
                         base_url = request.host_url.rstrip('/')
-                        test_link = f"{base_url}/tests/{test_id}/take"
+                        test_link = f"{base_url}/tests/take/{test_id}"
 
                         # Students of this class
                         students = db.execute(
@@ -688,8 +737,8 @@ def create_test():
                                     f"👤 Учень: <b>{p['student_name']}</b>\n"
                                     f"📚 Предмет: <b>{subj_label}</b>\n"
                                     f"📝 Тест: <b>{title}</b>"
-                                    f"{deadline_str}"
-                                    f"{link_str}"
+                                    f"{deadline_str}\n\n"
+                                    f"ℹ️ <i>Тест призначено для учня. Учень має пройти його особисто зі свого кабінету або за посиланням у своєму Telegram.</i>"
                                 )
                                 send_notification_sync(p['telegram_id'], msg)
 
@@ -699,7 +748,7 @@ def create_test():
 
                 return redirect(url_for('tests.list_tests'))
 
-    classes = [dict(r) for r in db.execute('SELECT * FROM classes ORDER BY name').fetchall()]
+    classes = [dict(r) for r in db.execute("SELECT * FROM classes ORDER BY CAST(SUBSTR(name, 1, INSTR(name||'-', '-')-1) AS INTEGER), name").fetchall()]
     subjects = [dict(r) for r in db.execute('SELECT * FROM subjects ORDER BY name').fetchall()]
     return render_template('tests/create.html', classes=classes, subjects=subjects,
                            curriculum_topics=CURRICULUM_TOPICS,

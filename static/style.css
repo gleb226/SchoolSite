@@ -551,6 +551,7 @@ body.nav-open { overflow: hidden; }
 .form-group input[type="tel"],
 .form-group input[type="number"],
 .form-group input[type="date"],
+.form-group input[type="datetime-local"],
 .form-group select,
 .form-group textarea {
     width: 100%;
@@ -1372,6 +1373,7 @@ html.dark-mode {
 [data-theme="dark"] input[type="email"],
 [data-theme="dark"] input[type="number"],
 [data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="datetime-local"],
 [data-theme="dark"] select,
 [data-theme="dark"] textarea {
     background: #16223b;

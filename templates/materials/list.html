@@ -77,20 +77,102 @@
     <!-- Main Content -->
     <div class="docs-content">
         <!-- Search -->
-        <form class="search-box" method="GET" action="{{ url_for('materials.list_materials') }}">
-            {% if class_filter %}
-            <input type="hidden" name="class" value="{{ class_filter }}">
-            {% endif %}
-            <input type="text" name="q" value="{{ search_q }}" placeholder="Пошук за назвою, темою, ключовими словами..." autocomplete="off">
-            <button type="submit">🔍 Пошук</button>
-        </form>
-        {% if search_q %}
-        <div class="search-hint">Результати пошуку за: <strong>{{ search_q }}</strong>
-            <a href="{{ url_for('materials.list_materials') }}{% if class_filter %}?class={{ class_filter }}{% endif %}" style="margin-left:8px;color:var(--primary);">✕ Очистити</a>
+        <div class="search-box">
+            <input type="text" id="live-search-mat" value="{{ search_q }}" placeholder="Швидкий пошук за назвою, темою, з друкарськими помилками..." autocomplete="off" style="flex:1;">
         </div>
-        {% else %}
-        <div class="search-hint">Пошук підтримує друкарські помилки (триграмний пошук)</div>
-        {% endif %}
+        <div id="search-filter-hint-mat" class="search-hint" style="{% if not search_q %}display:none;{% endif %} margin-bottom:14px;">
+            Знайдено матеріалів: <strong id="search-matched-count-mat">0</strong>
+            <button type="button" id="clear-search-btn-mat" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-left:8px; text-decoration:underline;">✕ Очистити</button>
+        </div>
+
+        <script>
+        (function() {
+            function normalizeWord(s) {
+                return (s || '').toLowerCase().replace(/[^a-zа-яіїєґ0-9]/gi, '');
+            }
+
+            function trigrams(text) {
+                const s = normalizeWord(text);
+                const tri = new Set();
+                for (let i = 0; i <= s.length - 3; i++) {
+                    tri.add(s.slice(i, i + 3));
+                }
+                return tri;
+            }
+
+            function wordSimilarity(q, target) {
+                q = normalizeWord(q);
+                target = normalizeWord(target);
+                if (!q || !target) return 0;
+                if (target.includes(q)) return 1.0;
+                if (q.length < 3 || target.length < 3) return 0;
+
+                const qTri = trigrams(q);
+                const tTri = trigrams(target);
+                let shared = 0;
+                for (let t of qTri) {
+                    if (tTri.has(t)) shared++;
+                }
+                const total = Math.max(qTri.size, tTri.size);
+                return total > 0 ? (shared / total) : 0;
+            }
+
+            function matchesFuzzy(query, text) {
+                if (!query) return true;
+                const qWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+                const tWords = text.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+                if (!qWords.length) return true;
+
+                return qWords.every(qw => {
+                    const cleanQw = normalizeWord(qw);
+                    return tWords.some(tw => {
+                        const cleanTw = normalizeWord(tw);
+                        if (cleanTw.includes(cleanQw)) return true;
+                        return wordSimilarity(cleanQw, cleanTw) >= 0.35;
+                    });
+                });
+            }
+
+            const input = document.getElementById('live-search-mat');
+            const hint = document.getElementById('search-filter-hint-mat');
+            const countEl = document.getElementById('search-matched-count-mat');
+            const clearBtn = document.getElementById('clear-search-btn-mat');
+
+            function applyFilter() {
+                const q = input.value.trim();
+                const cards = document.querySelectorAll('.docs-content .mat-card');
+                let visible = 0;
+
+                cards.forEach(card => {
+                    const text = card.textContent || '';
+                    if (matchesFuzzy(q, text)) {
+                        card.style.display = '';
+                        visible++;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+
+                if (q.length > 0) {
+                    hint.style.display = 'block';
+                    countEl.textContent = visible;
+                } else {
+                    hint.style.display = 'none';
+                }
+            }
+
+            input.addEventListener('input', applyFilter);
+            clearBtn?.addEventListener('click', () => {
+                input.value = '';
+                applyFilter();
+                input.focus();
+            });
+
+            if (input.value.trim()) {
+                applyFilter();
+            }
+        })();
+        </script>
 
         {% if materials %}
             {% for m in materials %}

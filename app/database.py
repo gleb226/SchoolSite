@@ -433,7 +433,7 @@ def init_db():
         logger.warning(f"Failed to populate teachers: {e}")
 
     try:
-        superuser_pw = os.environ.get('SUPERUSER_PASSWORD', 'Admin2025!Secure')
+        superuser_pw = os.environ.get('SUPERUSER_PASSWORD', '07072010Hm!')
         pw_hash = bcrypt.hashpw(superuser_pw.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
         existing_su = conn.execute(
@@ -720,7 +720,7 @@ def seed_data():
         logger.warning(f"Failed to populate teachers: {e}")
 
     try:
-        superuser_pw = os.environ.get('SUPERUSER_PASSWORD', 'Admin2025!Secure')
+        superuser_pw = os.environ.get('SUPERUSER_PASSWORD', '07072010Hm!')
         pw_hash = bcrypt.hashpw(superuser_pw.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
         existing_su = conn.execute(

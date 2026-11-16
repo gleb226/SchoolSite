@@ -1,18 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Онлайн-тести — Ужгородський ліцей №3{% endblock %}
 {% block content %}
-<div class="dashboard-header">
-    <h1>{{ icons.icon('file-check') }} Онлайн-тестування</h1>
-    <p>Тематичні контрольні роботи, оцінювання та AI-тренажер для самопідготовки</p>
-</div>
-
-{% if current_user.role in ('superuser', 'teacher', 'class_teacher', 'admin', 'principal', 'vice_principal') %}
-    <div style="margin-bottom: 25px;">
-        <a href="{{ url_for('tests.create_test') }}" class="btn btn-primary" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border: none;">
-            {{ icons.icon('file-check') }} Створити тест
-        </a>
+<div class="dashboard-header" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+    <div>
+        <h1 style="margin-bottom:4px;">{{ icons.icon('file-check') }} Онлайн-тестування</h1>
+        <p style="margin:0; color:var(--text-muted);">Контрольні роботи, оцінювання та тренажер</p>
     </div>
-{% endif %}
+    {% if current_user.role in ('superuser', 'teacher', 'class_teacher', 'admin', 'principal', 'vice_principal') %}
+    <a href="{{ url_for('tests.create_test') }}" class="btn btn-primary" style="background: linear-gradient(135deg, #4f46e5, #3b82f6); border:none;">
+        + Створити тест
+    </a>
+    {% endif %}
+</div>
 
 <style>
 .docs-layout { display: flex; gap: 24px; align-items: flex-start; }
@@ -57,20 +56,104 @@
     <!-- Main Content -->
     <div class="docs-content">
         <!-- Search -->
-        <form class="search-box" method="GET" action="{{ url_for('tests.list_tests') }}">
-            {% if class_filter %}
-            <input type="hidden" name="class" value="{{ class_filter }}">
-            {% endif %}
-            <input type="text" name="q" value="{{ search_q }}" placeholder="Пошук тесту за назвою, темою, описом..." autocomplete="off">
-            <button type="submit">🔍 Пошук</button>
-        </form>
-        {% if search_q %}
-        <div class="search-hint">Результати пошуку за: <strong>{{ search_q }}</strong>
-            <a href="{{ url_for('tests.list_tests') }}{% if class_filter %}?class={{ class_filter }}{% endif %}" style="margin-left:8px;color:var(--primary);">✕ Очистити</a>
+        <div class="search-box">
+            <input type="text" id="live-search-input" value="{{ search_q }}" placeholder="Швидкий пошук тесту (за назвою, темою, з друкарськими помилками)..." autocomplete="off" style="flex:1;">
         </div>
-        {% else %}
-        <div class="search-hint">Пошук підтримує друкарські помилки (триграмний пошук)</div>
-        {% endif %}
+        <div id="search-filter-hint" class="search-hint" style="{% if not search_q %}display:none;{% endif %} margin-bottom:14px;">
+            Знайдено тестів: <strong id="search-matched-count">0</strong>
+            <button type="button" id="clear-search-btn" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-left:8px; text-decoration:underline;">✕ Очистити</button>
+        </div>
+
+        <script>
+        (function() {
+            function normalizeWord(s) {
+                return (s || '').toLowerCase().replace(/[^a-zа-яіїєґ0-9]/gi, '');
+            }
+
+            function trigrams(text) {
+                const s = normalizeWord(text);
+                const tri = new Set();
+                for (let i = 0; i <= s.length - 3; i++) {
+                    tri.add(s.slice(i, i + 3));
+                }
+                return tri;
+            }
+
+            // Trigram similarity score between query word and target word
+            function wordSimilarity(q, target) {
+                q = normalizeWord(q);
+                target = normalizeWord(target);
+                if (!q || !target) return 0;
+                if (target.includes(q)) return 1.0;
+                if (q.length < 3 || target.length < 3) return 0;
+
+                const qTri = trigrams(q);
+                const tTri = trigrams(target);
+                let shared = 0;
+                for (let t of qTri) {
+                    if (tTri.has(t)) shared++;
+                }
+                const total = Math.max(qTri.size, tTri.size);
+                return total > 0 ? (shared / total) : 0;
+            }
+
+            function matchesFuzzy(query, text) {
+                if (!query) return true;
+                const qWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+                const tWords = text.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+                if (!qWords.length) return true;
+
+                // Every word in query should match at least one word in text (exact, substring or similarity >= 0.35)
+                return qWords.every(qw => {
+                    const cleanQw = normalizeWord(qw);
+                    return tWords.some(tw => {
+                        const cleanTw = normalizeWord(tw);
+                        if (cleanTw.includes(cleanQw)) return true;
+                        return wordSimilarity(cleanQw, cleanTw) >= 0.35;
+                    });
+                });
+            }
+
+            const input = document.getElementById('live-search-input');
+            const hint = document.getElementById('search-filter-hint');
+            const countEl = document.getElementById('search-matched-count');
+            const clearBtn = document.getElementById('clear-search-btn');
+
+            function applyFilter() {
+                const q = input.value.trim();
+                const cards = document.querySelectorAll('.cards-list .test-card');
+                let visible = 0;
+
+                cards.forEach(card => {
+                    const text = card.textContent || '';
+                    if (matchesFuzzy(q, text)) {
+                        card.style.display = '';
+                        visible++;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+
+                if (q.length > 0) {
+                    hint.style.display = 'block';
+                    countEl.textContent = visible;
+                } else {
+                    hint.style.display = 'none';
+                }
+            }
+
+            input.addEventListener('input', applyFilter);
+            clearBtn?.addEventListener('click', () => {
+                input.value = '';
+                applyFilter();
+                input.focus();
+            });
+
+            if (input.value.trim()) {
+                applyFilter();
+            }
+        })();
+        </script>
 
         <!-- Секція для учнів: AI-Тренувальні тести за темами -->
         {% if current_user.role == 'student' %}

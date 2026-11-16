@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Вхід до тесту — Ужгородський ліцей №3{% endblock %}
+{% block content %}
+<div style="max-width:440px; margin:40px auto; padding:0 15px;">
+    <div style="text-align:center; margin-bottom:24px;">
+        <div style="font-size:48px; margin-bottom:6px;">📝</div>
+        <h1 style="font-size:22px; color:#1e3a8a; font-weight:800; margin-bottom:6px;">
+            Вхід до тесту
+        </h1>
+        <p style="color:#64748b; font-size:14px; margin:0;">
+            {{ test.title }}
+        </p>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger" style="margin-bottom:16px; text-align:center;">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="card" style="border-top:4px solid #4f46e5; padding:24px;">
+        {% if current_user %}
+        <form method="POST" action="{{ url_for('tests.take_guest_name', test_id=test.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:12px; margin-bottom:18px;">
+                <p style="margin:0; font-size:14px; color:#1e40af;">
+                    Ви авторизовані як: <strong>{{ current_user.full_name }}</strong>
+                </p>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%; padding:12px; font-size:16px; font-weight:700;">
+                Почати тест як {{ current_user.full_name }} →
+            </button>
+        </form>
+        {% else %}
+        <form method="POST" action="{{ url_for('tests.take_guest_name', test_id=test.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group" style="margin-bottom:18px;">
+                <label for="guest_name" style="display:block; font-weight:700; color:#1e293b; font-size:14px; margin-bottom:8px;">
+                    Введіть ваше ім'я та прізвище:
+                </label>
+                <input type="text" id="guest_name" name="guest_name" required maxlength="80"
+                       placeholder="Наприклад: Олексій Петренко"
+                       style="width:100%; font-size:16px; padding:11px 14px; border:2px solid #cbd5e1; border-radius:8px; text-align:center;">
+                <small style="display:block; color:#64748b; font-size:12px; margin-top:6px; text-align:center;">
+                    Реєстрація не потрібна — вчитель побачить ваш результат під цим ім'ям
+                </small>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%; padding:12px; font-size:16px; font-weight:700; background:linear-gradient(135deg, #4f46e5, #3b82f6); border:none;">
+                Почати проходження тесту →
+            </button>
+            <div style="margin-top:16px; text-align:center;">
+                <a href="{{ url_for('auth.login', next=request.path) }}" style="font-size:13px; color:#4f46e5; text-decoration:none;">
+                    Або увійдіть зі своїм логіном
+                </a>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
